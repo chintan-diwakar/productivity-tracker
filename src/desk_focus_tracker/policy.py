@@ -29,3 +29,6 @@ class AwayPolicy:
                 result.metrics,
             )
         return result
+
+    def reset(self) -> None:
+        self._no_person_since = None

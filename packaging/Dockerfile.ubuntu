@@ -1,0 +1,31 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+      ca-certificates \
+      dpkg-dev \
+      libgl1 \
+      libglib2.0-0t64 \
+      libglib2.0-bin \
+      libpython3.12 \
+      libsm6 \
+      libxext6 \
+      libxrender1 \
+      python3 \
+      python3-tk \
+      python3-venv \
+      xdg-utils \
+      xvfb \
+      xauth \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/release-venv
+ENV PATH="/opt/release-venv/bin:${PATH}"
+
+WORKDIR /project
+COPY . .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip ".[dev,packaging]"
+
+CMD ["bash", "-lc", "python -m pytest && bash packaging/build_ubuntu.sh && cp dist/*.deb dist/*.deb.sha256 /output/"]

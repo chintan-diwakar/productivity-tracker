@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
@@ -13,6 +15,8 @@ class ConfigurationError(ValueError):
 
 
 def default_data_dir() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Desk Focus Tracker"
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     if xdg_data_home:
         return Path(xdg_data_home) / "desk-focus-tracker"
@@ -20,10 +24,26 @@ def default_data_dir() -> Path:
 
 
 def default_model_dir() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "Desk Focus Tracker" / "models"
     xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
     if xdg_cache_home:
         return Path(xdg_cache_home) / "desk-focus-tracker" / "models"
     return Path.home() / ".cache" / "desk-focus-tracker" / "models"
+
+
+def default_config_path() -> Path:
+    if sys.platform == "darwin":
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Desk Focus Tracker"
+            / "configuration.json"
+        )
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg_config_home) if xdg_config_home else Path.home() / ".config"
+    return base / "desk-focus-tracker" / "configuration.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,9 +159,30 @@ def write_default_config(path: Path) -> None:
     if path.exists():
         raise ConfigurationError(f"configuration already exists: {path}")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     config = AppConfig(data_dir=default_data_dir(), model_dir=default_model_dir())
+    write_config(path, config)
+
+
+def write_config(path: Path, config: AppConfig) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
     try:
-        path.write_text(json.dumps(config.to_mapping(), indent=2) + "\n", encoding="utf-8")
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as stream:
+            temporary_path = Path(stream.name)
+            json.dump(config.to_mapping(), stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, path)
     except OSError as error:
         raise ConfigurationError(f"cannot write configuration {path}: {error}") from error
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)

@@ -29,6 +29,10 @@ class TemporalSmoother:
     def stable(self) -> DetectionResult:
         return self._stable
 
+    def reset(self, result: DetectionResult | None = None) -> None:
+        self._window.clear()
+        self._stable = result or DetectionResult(Status.UNCERTAIN, 0.0, "smoothing_reset")
+
     def update(self, candidate: DetectionResult) -> SmoothingUpdate:
         self._window.append(candidate)
         if candidate.status is self._stable.status:

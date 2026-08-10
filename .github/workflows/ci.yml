@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the project
+        run: python -m pip install --upgrade pip ".[dev,packaging]"
+      - name: Run the format check
+        run: python -m ruff format --check src tests packaging/build_icon.py packaging/desktop_entry.py
+      - name: Run the code check
+        run: python -m ruff check src tests packaging/build_icon.py packaging/desktop_entry.py
+      - name: Run the tests
+        run: python -m pytest
+      - name: Build the macOS test package
+        if: runner.os == 'macOS'
+        run: bash packaging/build_macos.sh
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: macos-test-package
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
