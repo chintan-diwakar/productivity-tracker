@@ -18,6 +18,7 @@ from desk_focus_tracker.config import (
 from desk_focus_tracker.detector import create_detector
 from desk_focus_tracker.domain import DetectionResult
 from desk_focus_tracker.models import ModelError, ModelStore
+from desk_focus_tracker.preview import PreviewError, run_preview
 from desk_focus_tracker.runner import TrackerRunner
 from desk_focus_tracker.storage import JsonlSessionLogger, StorageError
 
@@ -50,6 +51,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     benchmark_parser.add_argument("--config", type=Path, help="path to a JSON configuration")
     benchmark_parser.add_argument("--iterations", type=int, default=10)
+
+    preview_parser = subparsers.add_parser(
+        "preview",
+        help="show live detection evidence without saving frames",
+    )
+    preview_parser.add_argument("--config", type=Path, help="path to a JSON configuration")
+    preview_parser.add_argument(
+        "--duration",
+        type=float,
+        help="stop after this number of seconds",
+    )
+    preview_parser.add_argument(
+        "--score-threshold",
+        type=float,
+        help="override the object detection score threshold",
+    )
     return parser
 
 
@@ -131,12 +148,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if arguments.command == "benchmark":
             return benchmark_detector(arguments.config, arguments.iterations)
+        if arguments.command == "preview":
+            return run_preview(
+                arguments.config,
+                arguments.duration,
+                arguments.score_threshold,
+            )
         parser.error(f"unsupported command: {arguments.command}")
     except (
         CameraError,
         ConfigurationError,
         DependencyError,
         ModelError,
+        PreviewError,
         StorageError,
         ValueError,
     ) as error:

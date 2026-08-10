@@ -14,6 +14,7 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 - Face Landmarker estimates head pitch.
 - Hand Landmarker associates a phone with a nearby hand.
 - The classifier requires phone, hand, and downward-head evidence for phone use.
+- A diagnostic window shows the frame, detector boxes, hand points, and missing evidence.
 - An away policy delays `AWAY` classification.
 - A rolling window prevents one-frame status changes.
 - JSON Lines files store status transitions.
@@ -80,6 +81,20 @@ Measure model speed and peak memory without a camera:
 
 ```bash
 .venv/bin/desk-focus benchmark --config configuration.json --iterations 10
+```
+
+Show the live diagnostic window:
+
+```bash
+.venv/bin/desk-focus preview --config configuration.json
+```
+
+The preview does not save frames or write session logs. Press `Q` or `Esc` to close it.
+
+Use a lower threshold for a phone-detection experiment:
+
+```bash
+.venv/bin/desk-focus preview --config configuration.json --score-threshold 0.15
 ```
 
 ## Data

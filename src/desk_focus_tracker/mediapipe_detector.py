@@ -81,7 +81,10 @@ class MediaPipeDetector:
         )
 
     def detect(self, frame: Any) -> DetectionResult:
-        return self._classifier.classify(self.analyze(frame))
+        return self.classify(self.analyze(frame))
+
+    def classify(self, evidence: VisionEvidence) -> DetectionResult:
+        return self._classifier.classify(evidence)
 
     def analyze(self, frame: Any) -> VisionEvidence:
         if self._closed:
@@ -96,6 +99,7 @@ class MediaPipeDetector:
         person_count = 0
         person_confidence = 0.0
         phone_confidence = 0.0
+        person_boxes: list[NormalizedBox] = []
         phone_boxes: list[NormalizedBox] = []
 
         for detection in object_result.detections:
@@ -107,17 +111,10 @@ class MediaPipeDetector:
             if category_name == "person":
                 person_count += 1
                 person_confidence = max(person_confidence, score)
+                person_boxes.append(self._normalize_box(detection.bounding_box, width, height))
             elif category_name == "cell phone":
                 phone_confidence = max(phone_confidence, score)
-                box = detection.bounding_box
-                phone_boxes.append(
-                    NormalizedBox(
-                        x=max(0.0, float(box.origin_x) / width),
-                        y=max(0.0, float(box.origin_y) / height),
-                        width=min(1.0, float(box.width) / width),
-                        height=min(1.0, float(box.height) / height),
-                    )
-                )
+                phone_boxes.append(self._normalize_box(detection.bounding_box, width, height))
 
         hand_points: list[Point] = []
         if phone_boxes:
@@ -126,6 +123,23 @@ class MediaPipeDetector:
                 hand_points.extend(Point(float(point.x), float(point.y)) for point in hand)
 
         face_count = len(face_result.face_landmarks)
+        face_boxes: list[NormalizedBox] = []
+        for face in face_result.face_landmarks:
+            x_values = [float(point.x) for point in face]
+            y_values = [float(point.y) for point in face]
+            if x_values and y_values:
+                x_min = max(0.0, min(x_values))
+                y_min = max(0.0, min(y_values))
+                x_max = min(1.0, max(x_values))
+                y_max = min(1.0, max(y_values))
+                face_boxes.append(
+                    NormalizedBox(
+                        x=x_min,
+                        y=y_min,
+                        width=max(0.0, x_max - x_min),
+                        height=max(0.0, y_max - y_min),
+                    )
+                )
         head_pitch_degrees: float | None = None
         matrices = face_result.facial_transformation_matrixes
         if len(matrices) == 1:
@@ -139,6 +153,21 @@ class MediaPipeDetector:
             face_count=face_count,
             hand_points=tuple(hand_points),
             head_pitch_degrees=head_pitch_degrees,
+            person_boxes=tuple(person_boxes),
+            face_boxes=tuple(face_boxes),
+        )
+
+    @staticmethod
+    def _normalize_box(box: Any, width: int, height: int) -> NormalizedBox:
+        x_min = max(0.0, min(1.0, float(box.origin_x) / width))
+        y_min = max(0.0, min(1.0, float(box.origin_y) / height))
+        x_max = max(0.0, min(1.0, float(box.origin_x + box.width) / width))
+        y_max = max(0.0, min(1.0, float(box.origin_y + box.height) / height))
+        return NormalizedBox(
+            x=x_min,
+            y=y_min,
+            width=max(0.0, x_max - x_min),
+            height=max(0.0, y_max - y_min),
         )
 
     def _get_hand_landmarker(self) -> Any:

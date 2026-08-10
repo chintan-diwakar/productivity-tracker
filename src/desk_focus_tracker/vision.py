@@ -34,6 +34,8 @@ class VisionEvidence:
     face_count: int
     hand_points: tuple[Point, ...]
     head_pitch_degrees: float | None
+    person_boxes: tuple[NormalizedBox, ...] = ()
+    face_boxes: tuple[NormalizedBox, ...] = ()
 
 
 def minimum_phone_hand_distance(evidence: VisionEvidence) -> float | None:
