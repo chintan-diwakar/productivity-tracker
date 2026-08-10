@@ -75,6 +75,81 @@ class BehaviorClassifierTest(unittest.TestCase):
 
         self.assertIs(result.status, Status.AWAY)
 
+    def test_keeps_phone_use_during_brief_face_occlusion_after_downward_pose(self) -> None:
+        now = [10.0]
+        classifier = BehaviorClassifier(
+            downward_pitch_threshold_degrees=15.0,
+            neutral_head_pitch_degrees=0.0,
+            head_pitch_sign=1.0,
+            phone_hand_max_distance=0.2,
+            clock=lambda: now[0],
+        )
+        classifier.classify(self.evidence(head_pitch_degrees=20.0))
+        now[0] = 13.0
+
+        result = classifier.classify(
+            self.evidence(
+                phone_boxes=(NormalizedBox(0.4, 0.5, 0.1, 0.2),),
+                phone_confidence=0.9,
+                hand_points=(Point(0.46, 0.60),),
+                face_count=0,
+                head_pitch_degrees=None,
+            )
+        )
+
+        self.assertIs(result.status, Status.POSSIBLE_PHONE_USE)
+        self.assertEqual(result.reason, "phone_near_hand_and_recent_downward_head_pose")
+
+    def test_expires_downward_pose_memory_after_five_seconds(self) -> None:
+        now = [10.0]
+        classifier = BehaviorClassifier(
+            downward_pitch_threshold_degrees=15.0,
+            neutral_head_pitch_degrees=0.0,
+            head_pitch_sign=1.0,
+            phone_hand_max_distance=0.2,
+            clock=lambda: now[0],
+        )
+        classifier.classify(self.evidence(head_pitch_degrees=20.0))
+        now[0] = 16.0
+
+        result = classifier.classify(
+            self.evidence(
+                phone_boxes=(NormalizedBox(0.4, 0.5, 0.1, 0.2),),
+                phone_confidence=0.9,
+                hand_points=(Point(0.46, 0.60),),
+                face_count=0,
+                head_pitch_degrees=None,
+            )
+        )
+
+        self.assertIs(result.status, Status.LOOKING_AWAY)
+
+    def test_clears_downward_pose_memory_after_visible_upright_pose(self) -> None:
+        now = [10.0]
+        classifier = BehaviorClassifier(
+            downward_pitch_threshold_degrees=15.0,
+            neutral_head_pitch_degrees=0.0,
+            head_pitch_sign=1.0,
+            phone_hand_max_distance=0.2,
+            clock=lambda: now[0],
+        )
+        classifier.classify(self.evidence(head_pitch_degrees=20.0))
+        now[0] = 11.0
+        classifier.classify(self.evidence(head_pitch_degrees=5.0))
+        now[0] = 12.0
+
+        result = classifier.classify(
+            self.evidence(
+                phone_boxes=(NormalizedBox(0.4, 0.5, 0.1, 0.2),),
+                phone_confidence=0.9,
+                hand_points=(Point(0.46, 0.60),),
+                face_count=0,
+                head_pitch_degrees=None,
+            )
+        )
+
+        self.assertIs(result.status, Status.LOOKING_AWAY)
+
 
 class HeadPitchTest(unittest.TestCase):
     def test_extracts_pitch_from_rotation_matrix(self) -> None:

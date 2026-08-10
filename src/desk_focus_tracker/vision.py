@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from desk_focus_tracker.domain import DetectionResult, Status
@@ -61,20 +62,45 @@ class BehaviorClassifier:
         neutral_head_pitch_degrees: float,
         head_pitch_sign: float,
         phone_hand_max_distance: float,
+        downward_pose_grace_seconds: float = 5.0,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        if downward_pose_grace_seconds < 0.0:
+            raise ValueError("downward_pose_grace_seconds must be zero or greater")
         self._downward_pitch_threshold_degrees = downward_pitch_threshold_degrees
         self._neutral_head_pitch_degrees = neutral_head_pitch_degrees
         self._head_pitch_sign = head_pitch_sign
         self._phone_hand_max_distance = phone_hand_max_distance
+        self._downward_pose_grace_seconds = downward_pose_grace_seconds
+        self._clock = clock
+        self._downward_pose_valid_until = 0.0
 
     def classify(self, evidence: VisionEvidence) -> DetectionResult:
+        now = self._clock()
         if evidence.person_count == 0 and evidence.face_count == 0:
             return self._result(Status.AWAY, 0.70, "no_person_or_face_detected", evidence)
 
         if evidence.person_count > 1 or evidence.face_count > 1:
             return self._result(Status.UNCERTAIN, 0.20, "multiple_people_detected", evidence)
 
+        phone_hand_distance = minimum_phone_hand_distance(evidence)
+        phone_is_near_hand = (
+            phone_hand_distance is not None and phone_hand_distance <= self._phone_hand_max_distance
+        )
+
         if evidence.face_count == 0:
+            if (
+                evidence.phone_boxes
+                and phone_is_near_hand
+                and now <= self._downward_pose_valid_until
+            ):
+                confidence = max(0.20, evidence.phone_confidence)
+                return self._result(
+                    Status.POSSIBLE_PHONE_USE,
+                    confidence,
+                    "phone_near_hand_and_recent_downward_head_pose",
+                    evidence,
+                )
             confidence = max(0.20, evidence.person_confidence)
             return self._result(
                 Status.LOOKING_AWAY,
@@ -90,10 +116,10 @@ class BehaviorClassifier:
             evidence.head_pitch_degrees - self._neutral_head_pitch_degrees
         )
         head_is_down = relative_pitch >= self._downward_pitch_threshold_degrees
-        phone_hand_distance = minimum_phone_hand_distance(evidence)
-        phone_is_near_hand = (
-            phone_hand_distance is not None and phone_hand_distance <= self._phone_hand_max_distance
-        )
+        if head_is_down:
+            self._downward_pose_valid_until = now + self._downward_pose_grace_seconds
+        else:
+            self._downward_pose_valid_until = 0.0
 
         if evidence.phone_boxes and phone_is_near_hand and head_is_down:
             confidence = max(0.20, evidence.phone_confidence)
