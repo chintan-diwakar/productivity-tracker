@@ -5,6 +5,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +34,10 @@ from desk_focus_tracker.storage import JsonlSessionLogger
 
 class DesktopDependencyError(RuntimeError):
     """Raised when the desktop UI dependency is not installed."""
+
+
+class DesktopBusyError(RuntimeError):
+    """Raised when two operations try to use the camera at the same time."""
 
 
 STATUS_LABELS = {
@@ -75,6 +81,8 @@ class DesktopController:
         self._status_started = time.monotonic()
         self._last_sample: datetime | None = None
         self._error: str | None = None
+        self._camera_operation_lock = threading.Lock()
+        self._active_camera_operation: str | None = None
 
     @property
     def config(self) -> AppConfig:
@@ -95,7 +103,7 @@ class DesktopController:
         return paths
 
     def start(self) -> None:
-        with self._lock:
+        with self._camera_operation("starting tracking"), self._lock:
             if self._thread is not None and self._thread.is_alive():
                 assert self._runner is not None
                 self._runner.resume()
@@ -166,33 +174,44 @@ class DesktopController:
     def save_camera_index(self, camera_index: int) -> None:
         if camera_index < 0:
             raise ValueError("camera_index must be zero or greater")
-        self.stop()
-        with self._lock:
-            self._config = replace(load_config(self.config_path), camera_index=camera_index)
-            write_config(self.config_path, self._config)
+        with self._camera_operation("saving camera settings"):
+            config = load_config(self.config_path)
+            if config.camera_index == camera_index:
+                with self._lock:
+                    self._config = config
+                return
+            self.stop()
+            with self._lock:
+                self._config = replace(config, camera_index=camera_index)
+                write_config(self.config_path, self._config)
 
     def calibrate(self) -> CalibrationResult:
-        self.stop()
-        config = load_config(self.config_path)
-        result = calibrate_neutral_head(config)
-        write_config(self.config_path, result.config)
-        with self._lock:
-            self._config = result.config
-            self._error = None
-        return result
+        with self._camera_operation("calibration"):
+            self.stop()
+            with self._lock:
+                self._error = None
+            config = load_config(self.config_path)
+            result = calibrate_neutral_head(config)
+            write_config(self.config_path, result.config)
+            with self._lock:
+                self._config = result.config
+            return result
 
     def preview(self) -> None:
-        self.stop()
-        run_preview(
-            self.config_path,
-            duration_seconds=None,
-            score_threshold=None,
-            preview_width=1280,
-            preview_height=720,
-            display_fps=60.0,
-            inference_fps=10.0,
-            zoom=0.0,
-        )
+        with self._camera_operation("camera preview"):
+            self.stop()
+            with self._lock:
+                self._error = None
+            run_preview(
+                self.config_path,
+                duration_seconds=None,
+                score_threshold=None,
+                preview_width=1280,
+                preview_height=720,
+                display_fps=60.0,
+                inference_fps=10.0,
+                zoom=0.0,
+            )
 
     def open_data_folder(self) -> None:
         path = self.config.data_dir
@@ -261,6 +280,20 @@ class DesktopController:
         with self._lock:
             self._last_sample = sampled_at
 
+    @contextmanager
+    def _camera_operation(self, name: str) -> Iterator[None]:
+        if not self._camera_operation_lock.acquire(blocking=False):
+            active = self._active_camera_operation or "another camera operation"
+            raise DesktopBusyError(
+                f"Cannot start {name} while {active} is active. Close it and try again."
+            )
+        self._active_camera_operation = name
+        try:
+            yield
+        finally:
+            self._active_camera_operation = None
+            self._camera_operation_lock.release()
+
 
 class DeskFocusWindow:
     def __init__(self, controller: DesktopController, tk: Any, ttk: Any, messagebox: Any) -> None:
@@ -269,6 +302,8 @@ class DeskFocusWindow:
         self.ttk = ttk
         self.messagebox = messagebox
         self.actions: queue.SimpleQueue[tuple[str, object]] = queue.SimpleQueue()
+        self._action_in_progress = False
+        self._action_buttons: list[Any] = []
         self.root = tk.Tk()
         self.root.title("Desk Focus Tracker")
         self.root.geometry("520x650")
@@ -318,9 +353,9 @@ class DeskFocusWindow:
         controls.grid(row=10, column=0, columnspan=2, sticky="ew")
         for column in range(3):
             controls.columnconfigure(column, weight=1)
-        self.ttk.Button(controls, text="Start / Resume", command=self._start).grid(
-            row=0, column=0, sticky="ew", padx=(0, 5)
-        )
+        start_button = self.ttk.Button(controls, text="Start / Resume", command=self._start)
+        start_button.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        self._action_buttons.append(start_button)
         self.ttk.Button(controls, text="Pause", command=self.controller.pause).grid(
             row=0, column=1, sticky="ew", padx=5
         )
@@ -339,17 +374,18 @@ class DeskFocusWindow:
             textvariable=self.camera_index_value,
             width=8,
         ).grid(row=0, column=1, sticky="w", padx=8)
-        self.ttk.Button(setup, text="Save", command=self._save_camera).grid(
-            row=0, column=2, sticky="e"
+        save_button = self.ttk.Button(setup, text="Save", command=self._save_camera)
+        save_button.grid(row=0, column=2, sticky="e")
+        download_button = self.ttk.Button(
+            setup, text="Download models", command=self._download_models
         )
-        self.ttk.Button(setup, text="Download models", command=self._download_models).grid(
-            row=1, column=0, sticky="ew", pady=(10, 0)
-        )
-        self.ttk.Button(setup, text="Camera preview", command=self._preview).grid(
-            row=1, column=1, sticky="ew", padx=8, pady=(10, 0)
-        )
-        self.ttk.Button(setup, text="Calibrate", command=self._calibrate).grid(
-            row=1, column=2, sticky="ew", pady=(10, 0)
+        download_button.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        preview_button = self.ttk.Button(setup, text="Camera preview", command=self._preview)
+        preview_button.grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
+        calibrate_button = self.ttk.Button(setup, text="Calibrate", command=self._calibrate)
+        calibrate_button.grid(row=1, column=2, sticky="ew", pady=(10, 0))
+        self._action_buttons.extend(
+            (save_button, download_button, preview_button, calibrate_button)
         )
 
         privacy = self.ttk.LabelFrame(frame, text="Privacy", padding=12)
@@ -382,6 +418,13 @@ class DeskFocusWindow:
         )
 
     def _run_action(self, name: str, action: Any) -> None:
+        if self._action_in_progress:
+            self.message_value.set(
+                "Close the current camera window before starting another action."
+            )
+            return
+        self._action_in_progress = True
+        self._set_action_buttons_enabled(False)
         self.message_value.set(f"{name}…")
 
         def run() -> None:
@@ -415,6 +458,9 @@ class DeskFocusWindow:
         self._run_action("Calibrating", self.controller.calibrate)
 
     def _save_camera(self) -> bool:
+        if self._action_in_progress:
+            self.message_value.set("Close the current camera window before changing settings.")
+            return False
         try:
             self.controller.save_camera_index(int(self.camera_index_value.get()))
         except (TypeError, ValueError) as error:
@@ -442,6 +488,8 @@ class DeskFocusWindow:
                 outcome, payload = self.actions.get_nowait()
             except queue.Empty:
                 break
+            self._action_in_progress = False
+            self._set_action_buttons_enabled(True)
             if outcome == "error":
                 self.message_value.set(str(payload))
             else:
@@ -451,6 +499,8 @@ class DeskFocusWindow:
                         "Calibration complete. Neutral head angle: "
                         f"{result.neutral_pitch_degrees:.1f}°."
                     )
+                elif name == "Opening preview":
+                    self.message_value.set("Preview closed. Select Start / Resume to track.")
                 else:
                     self.message_value.set(f"{name} complete.")
 
@@ -478,6 +528,11 @@ class DeskFocusWindow:
             if snapshot.error:
                 self.message_value.set(snapshot.error)
         self.root.after(1000, self._refresh)
+
+    def _set_action_buttons_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        for button in self._action_buttons:
+            button.configure(state=state)
 
     def quit(self) -> None:
         self.controller.stop()
