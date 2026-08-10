@@ -10,7 +10,12 @@
   "minimum_matching_samples": 3,
   "retention_days": 30,
   "data_dir": "data",
-  "detector_backend": "opencv_face",
+  "model_dir": "models",
+  "detector_backend": "mediapipe",
+  "object_score_threshold": 0.35,
+  "downward_pitch_threshold_degrees": 15.0,
+  "neutral_head_pitch_degrees": 0.0,
+  "head_pitch_sign": 1.0,
+  "phone_hand_max_distance": 0.2,
   "configuration_version": 1
 }
-

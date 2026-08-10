@@ -32,6 +32,20 @@ class TemporalSmootherTest(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertIs(result.stable.status, Status.FOCUSED_SCREEN)
 
+    def test_preserves_metrics_on_transition(self) -> None:
+        smoother = TemporalSmoother(window_samples=3, minimum_matching_samples=2)
+        focused = DetectionResult(
+            Status.FOCUSED_SCREEN,
+            0.6,
+            "face",
+            (("head_pitch_degrees", 4.0),),
+        )
+
+        smoother.update(focused)
+        result = smoother.update(focused)
+
+        self.assertEqual(result.stable.metrics, focused.metrics)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,8 @@ build/
 dist/
 data/
 configuration.json
+models/
 *.onnx
 *.pt
 *.task
-
+*.tflite

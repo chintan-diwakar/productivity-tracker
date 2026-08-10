@@ -19,6 +19,13 @@ def default_data_dir() -> Path:
     return Path.home() / ".local" / "share" / "desk-focus-tracker"
 
 
+def default_model_dir() -> Path:
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache_home:
+        return Path(xdg_cache_home) / "desk-focus-tracker" / "models"
+    return Path.home() / ".cache" / "desk-focus-tracker" / "models"
+
+
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     camera_index: int = 0
@@ -32,10 +39,21 @@ class AppConfig:
     minimum_matching_samples: int = 3
     retention_days: int = 30
     data_dir: Path = Path("data")
-    detector_backend: str = "opencv_face"
+    model_dir: Path = Path("models")
+    detector_backend: str = "mediapipe"
+    object_score_threshold: float = 0.35
+    downward_pitch_threshold_degrees: float = 15.0
+    neutral_head_pitch_degrees: float = 0.0
+    head_pitch_sign: float = 1.0
+    phone_hand_max_distance: float = 0.2
     configuration_version: int = 1
 
     def __post_init__(self) -> None:
+        if isinstance(self.data_dir, str):
+            object.__setattr__(self, "data_dir", Path(self.data_dir).expanduser())
+        if isinstance(self.model_dir, str):
+            object.__setattr__(self, "model_dir", Path(self.model_dir).expanduser())
+
         errors: list[str] = []
         if self.camera_index < 0:
             errors.append("camera_index must be zero or greater")
@@ -55,8 +73,16 @@ class AppConfig:
             errors.append("minimum_matching_samples must be positive and not exceed window_samples")
         if self.retention_days <= 0:
             errors.append("retention_days must be positive")
-        if self.detector_backend not in {"opencv_face"}:
+        if self.detector_backend not in {"mediapipe", "opencv_face"}:
             errors.append(f"unsupported detector_backend: {self.detector_backend}")
+        if not 0.0 <= self.object_score_threshold <= 1.0:
+            errors.append("object_score_threshold must be between 0.0 and 1.0")
+        if not 0.0 < self.downward_pitch_threshold_degrees <= 90.0:
+            errors.append("downward_pitch_threshold_degrees must be greater than 0.0")
+        if self.head_pitch_sign not in {-1.0, 1.0}:
+            errors.append("head_pitch_sign must be -1.0 or 1.0")
+        if not 0.0 < self.phone_hand_max_distance <= 1.0:
+            errors.append("phone_hand_max_distance must be greater than 0.0 and not more than 1.0")
         if self.configuration_version <= 0:
             errors.append("configuration_version must be positive")
         if errors:
@@ -70,11 +96,13 @@ class AppConfig:
             raise ConfigurationError(f"unknown configuration keys: {', '.join(unknown)}")
 
         normalized = dict(values)
-        if "data_dir" in normalized:
-            value = normalized["data_dir"]
+        for path_key in ("data_dir", "model_dir"):
+            if path_key not in normalized:
+                continue
+            value = normalized[path_key]
             if not isinstance(value, str) or not value:
-                raise ConfigurationError("data_dir must be a non-empty string")
-            normalized["data_dir"] = Path(value).expanduser()
+                raise ConfigurationError(f"{path_key} must be a non-empty string")
+            normalized[path_key] = Path(value).expanduser()
 
         try:
             return cls(**normalized)
@@ -84,12 +112,13 @@ class AppConfig:
     def to_mapping(self) -> dict[str, Any]:
         values = asdict(self)
         values["data_dir"] = str(self.data_dir)
+        values["model_dir"] = str(self.model_dir)
         return values
 
 
 def load_config(path: Path | None) -> AppConfig:
     if path is None:
-        return AppConfig(data_dir=default_data_dir())
+        return AppConfig(data_dir=default_data_dir(), model_dir=default_model_dir())
 
     try:
         raw = path.read_text(encoding="utf-8")
@@ -111,7 +140,7 @@ def write_default_config(path: Path) -> None:
         raise ConfigurationError(f"configuration already exists: {path}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    config = AppConfig(data_dir=default_data_dir())
+    config = AppConfig(data_dir=default_data_dir(), model_dir=default_model_dir())
     try:
         path.write_text(json.dumps(config.to_mapping(), indent=2) + "\n", encoding="utf-8")
     except OSError as error:

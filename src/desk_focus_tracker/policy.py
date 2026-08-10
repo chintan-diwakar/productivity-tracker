@@ -26,5 +26,6 @@ class AwayPolicy:
                 Status.UNCERTAIN,
                 result.confidence,
                 "waiting_for_away_timeout",
+                result.metrics,
             )
         return result

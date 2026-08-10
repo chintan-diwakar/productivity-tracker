@@ -16,7 +16,12 @@ class JsonlSessionLoggerTest(unittest.TestCase):
             data_dir = Path(temporary_directory)
             logger = JsonlSessionLogger(data_dir, "test-model", 1)
             started_at = datetime(2026, 8, 10, 9, 0, tzinfo=timezone.utc)
-            focused = DetectionResult(Status.FOCUSED_SCREEN, 0.8, "focused")
+            focused = DetectionResult(
+                Status.FOCUSED_SCREEN,
+                0.8,
+                "focused",
+                (("head_pitch_degrees", 2.5),),
+            )
             phone = DetectionResult(Status.POSSIBLE_PHONE_USE, 0.9, "phone")
 
             logger.start(focused, started_at, monotonic_seconds=100.0)
@@ -29,6 +34,7 @@ class JsonlSessionLoggerTest(unittest.TestCase):
             summary = json.loads(summary_path.read_text())
 
         self.assertEqual(len(events), 3)
+        self.assertEqual(events[0]["metrics"]["head_pitch_degrees"], 2.5)
         self.assertEqual(summary["status_seconds"]["FOCUSED_SCREEN"], 10.0)
         self.assertEqual(summary["status_seconds"]["POSSIBLE_PHONE_USE"], 5.0)
         self.assertEqual(summary["productive_ratio"], 2 / 3)

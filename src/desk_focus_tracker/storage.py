@@ -61,6 +61,7 @@ class JsonlSessionLogger:
                 "status": initial.status.value,
                 "confidence": initial.confidence,
                 "reason": initial.reason,
+                "metrics": dict(initial.metrics),
             },
         )
         self._current = initial
@@ -80,6 +81,7 @@ class JsonlSessionLogger:
                 "status": result.status.value,
                 "confidence": result.confidence,
                 "reason": result.reason,
+                "metrics": dict(result.metrics),
                 "previous_status": current.status.value,
                 "elapsed_previous_seconds": elapsed,
             },
@@ -105,6 +107,7 @@ class JsonlSessionLogger:
                 "status": current.status.value,
                 "confidence": current.confidence,
                 "reason": current.reason,
+                "metrics": dict(current.metrics),
                 "previous_status": current.status.value,
                 "elapsed_previous_seconds": elapsed,
             },

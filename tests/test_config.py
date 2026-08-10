@@ -30,6 +30,12 @@ class AppConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(ConfigurationError, "minimum_matching_samples"):
             AppConfig(window_samples=3, minimum_matching_samples=4)
 
+    def test_converts_direct_path_strings(self) -> None:
+        config = AppConfig(data_dir="~/data", model_dir="~/models")
+
+        self.assertEqual(config.data_dir, Path("~/data").expanduser())
+        self.assertEqual(config.model_dir, Path("~/models").expanduser())
+
 
 if __name__ == "__main__":
     unittest.main()

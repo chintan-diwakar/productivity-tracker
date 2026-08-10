@@ -40,7 +40,12 @@ class TemporalSmoother:
 
         matching = [item for item in self._window if item.status is candidate.status]
         confidence = sum(item.confidence for item in matching) / len(matching)
-        self._stable = DetectionResult(candidate.status, confidence, candidate.reason)
+        self._stable = DetectionResult(
+            candidate.status,
+            confidence,
+            candidate.reason,
+            candidate.metrics,
+        )
         self._window.clear()
         self._window.append(candidate)
         return SmoothingUpdate(self._stable, True)

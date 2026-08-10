@@ -54,13 +54,17 @@ class TrackerRunner:
             raise ValueError("duration_seconds must be positive")
 
         run_started = time.monotonic()
-        self._camera.open()
-        now = datetime.now().astimezone()
-        current_monotonic = time.monotonic()
-        self._logger.start(self._smoother.stable, now, current_monotonic)
-        self._status_callback(self._smoother.stable)
-
+        camera_opened = False
+        logger_started = False
         try:
+            self._camera.open()
+            camera_opened = True
+            now = datetime.now().astimezone()
+            current_monotonic = time.monotonic()
+            self._logger.start(self._smoother.stable, now, current_monotonic)
+            logger_started = True
+            self._status_callback(self._smoother.stable)
+
             while not self._stop_event.is_set():
                 if duration_seconds is not None:
                     remaining = duration_seconds - (time.monotonic() - run_started)
@@ -88,9 +92,14 @@ class TrackerRunner:
             closed_at = datetime.now().astimezone()
             closed_monotonic = time.monotonic()
             try:
-                self._logger.close(closed_at, closed_monotonic)
+                if logger_started:
+                    self._logger.close(closed_at, closed_monotonic)
             finally:
-                self._camera.close()
+                try:
+                    self._detector.close()
+                finally:
+                    if camera_opened:
+                        self._camera.close()
 
     def _sample_once(self) -> DetectionResult:
         frame: object | None = None

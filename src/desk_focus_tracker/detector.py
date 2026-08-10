@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from desk_focus_tracker.camera import DependencyError, import_cv2
+from desk_focus_tracker.config import AppConfig
 from desk_focus_tracker.domain import DetectionResult, Status
 
 
@@ -11,6 +12,8 @@ class Detector(Protocol):
     model_version: str
 
     def detect(self, frame: Any) -> DetectionResult: ...
+
+    def close(self) -> None: ...
 
 
 class OpenCVFaceDetector:
@@ -44,8 +47,15 @@ class OpenCVFaceDetector:
             return DetectionResult(Status.UNCERTAIN, 0.20, "multiple_faces_detected")
         return DetectionResult(Status.FOCUSED_SCREEN, 0.60, "one_frontal_face_detected")
 
+    def close(self) -> None:
+        return None
 
-def create_detector(backend: str) -> Detector:
-    if backend == "opencv_face":
+
+def create_detector(config: AppConfig) -> Detector:
+    if config.detector_backend == "mediapipe":
+        from desk_focus_tracker.mediapipe_detector import MediaPipeDetector
+
+        return MediaPipeDetector(config)
+    if config.detector_backend == "opencv_face":
         return OpenCVFaceDetector()
-    raise ValueError(f"unsupported detector backend: {backend}")
+    raise ValueError(f"unsupported detector backend: {config.detector_backend}")

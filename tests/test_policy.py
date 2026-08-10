@@ -9,13 +9,19 @@ from desk_focus_tracker.policy import AwayPolicy
 class AwayPolicyTest(unittest.TestCase):
     def test_waits_for_continuous_timeout(self) -> None:
         policy = AwayPolicy(timeout_seconds=30.0)
-        absent = DetectionResult(Status.AWAY, 0.7, "no_face")
+        absent = DetectionResult(
+            Status.AWAY,
+            0.7,
+            "no_face",
+            (("person_count", 0.0),),
+        )
 
         first = policy.apply(absent, monotonic_seconds=100.0)
         before_timeout = policy.apply(absent, monotonic_seconds=129.9)
         after_timeout = policy.apply(absent, monotonic_seconds=130.0)
 
         self.assertIs(first.status, Status.UNCERTAIN)
+        self.assertEqual(first.metrics, absent.metrics)
         self.assertIs(before_timeout.status, Status.UNCERTAIN)
         self.assertIs(after_timeout.status, Status.AWAY)
 

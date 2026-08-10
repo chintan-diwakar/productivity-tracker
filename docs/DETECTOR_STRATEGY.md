@@ -2,34 +2,47 @@
 
 ## Decision
 
-The application runtime will not depend on the Ultralytics Python package during the first implementation.
+The first prototype uses MediaPipe Tasks for object, face, and hand detection.
 
-Ultralytics is useful for model experiments and ONNX export. ONNX Runtime is a smaller production inference layer than the PyTorch stack.
+EfficientDet-Lite0 INT8 detects the COCO `person` and `cell phone` classes. Face Landmarker supplies a facial transformation matrix.
 
-The current application uses an OpenCV frontal-face detector. This detector proves the capture, policy, smoothing, and logging pipeline.
+Hand Landmarker supplies normalized hand points. The application compares those points with the center of each phone box.
 
 ## Target detector pipeline
 
 The target pipeline combines these independent signals:
 
-1. MediaPipe Face Landmarker detects face presence and face landmarks.
-2. A head-pose component estimates pitch and screen direction.
-3. An ONNX object detector detects the `cell phone` class.
-4. A hand component associates the phone with the primary person.
+1. EfficientDet-Lite0 detects people and phones.
+2. Face Landmarker detects faces and estimates head pitch.
+3. Hand Landmarker locates hands when a phone is visible.
+4. A distance rule associates the phone with a hand.
 5. The classifier requires agreement between the phone, hand, and head signals.
 
 The classifier returns `UNCERTAIN` when a required signal is absent.
 
-## Ultralytics use
+## Classification rules
 
-Ultralytics models contain the COCO `cell phone` class. A nano detection model can provide a useful baseline.
+The classifier applies these rules in order:
+
+1. No person and no face becomes `AWAY` after the away delay.
+2. Multiple people or faces become `UNCERTAIN`.
+3. A person without a visible face becomes `LOOKING_AWAY`.
+4. Missing head pose becomes `UNCERTAIN`.
+5. A nearby phone, hand, and downward head become `POSSIBLE_PHONE_USE`.
+6. A downward head without complete phone evidence becomes `LOOKING_DOWN`.
+7. A phone near a hand without a downward head becomes `UNCERTAIN`.
+8. Other single-face results become `FOCUSED_SCREEN`.
+
+## Ultralytics fallback
+
+Ultralytics remains the fallback when EfficientDet-Lite0 misses too many phones. A nano YOLO model can provide a second baseline.
 
 The proposed experiment uses this flow:
 
 ```text
 Ultralytics nano model
         |
-Validation on desk-camera images
+Evaluation on desk-camera images
         |
 ONNX export with fixed input size
         |
@@ -38,7 +51,7 @@ ONNX Runtime CPU benchmark
 Application detector adapter
 ```
 
-Do not download a model during normal application startup. Package an approved model or require an explicit installation command.
+The Ultralytics package stays outside the application runtime. The application will use ONNX Runtime for an exported model.
 
 ## License constraint
 
@@ -58,11 +71,10 @@ The detector is acceptable only when it meets all these conditions on the refere
 - Phone-use precision meets the target from the labeled evaluation set.
 - The detector returns `UNCERTAIN` for weak or conflicting evidence.
 
-## Next experiment
+## Evaluation sequence
 
-1. Collect opt-in desk-camera images for the defined edge cases.
-2. Export the smallest suitable model to ONNX.
-3. Measure memory, latency, and phone precision at `320x240` and `320x320`.
-4. Compare the result with a MediaPipe EfficientDet-Lite object detector.
-5. Select the backend from measured results and license compatibility.
-
+1. Measure the MediaPipe prototype on the reference Ubuntu computer.
+2. Collect opt-in desk-camera images for the defined edge cases.
+3. Measure phone precision and recall for EfficientDet-Lite0.
+4. If phone recall is insufficient, export a nano YOLO model to ONNX.
+5. Compare memory, latency, accuracy, and license compatibility.
