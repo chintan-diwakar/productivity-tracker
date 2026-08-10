@@ -174,6 +174,13 @@ def evidence_lines(
     return lines + (
         f"CAMERA: {performance.camera.width}x{performance.camera.height}"
         f" (driver {performance.camera.fps:.1f} FPS)",
+        (
+            f"ZOOM: {performance.camera.zoom:.0f} (widest)"
+            if performance.camera.zoom_supported and performance.camera.zoom == 0.0
+            else f"ZOOM: {performance.camera.zoom:.0f}"
+            if performance.camera.zoom_supported
+            else "ZOOM: NOT SUPPORTED"
+        ),
         f"DISPLAY: {performance.measured_display_fps:.1f}"
         f" / {performance.target_display_fps:.1f} FPS",
         f"INFERENCE: {latency} / {performance.target_inference_fps:.1f} FPS target",
@@ -293,6 +300,7 @@ def run_preview(
     preview_height: int,
     display_fps: float,
     inference_fps: float,
+    zoom: float,
 ) -> int:
     if duration_seconds is not None and duration_seconds <= 0.0:
         raise ValueError("duration_seconds must be positive")
@@ -304,6 +312,8 @@ def run_preview(
         raise ValueError("display_fps must be greater than 0.0 and not more than 120.0")
     if not 0.0 < inference_fps <= display_fps:
         raise ValueError("inference_fps must be positive and not more than display_fps")
+    if zoom < 0.0:
+        raise ValueError("zoom must be zero or greater")
 
     config = load_config(config_path)
     if score_threshold is not None:
@@ -318,6 +328,7 @@ def run_preview(
         preview_height,
         capture_fps=display_fps,
         prefer_mjpeg=True,
+        zoom=zoom,
     )
     detector = MediaPipeDetector(config)
     worker = InferenceWorker(detector)

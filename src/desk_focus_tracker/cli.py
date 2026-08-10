@@ -91,6 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=10.0,
         help="background inference rate (default: 10)",
     )
+    preview_parser.add_argument(
+        "--zoom",
+        type=float,
+        default=0.0,
+        help="camera zoom. Zero gives the widest view (default: 0)",
+    )
     return parser
 
 
@@ -181,6 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.height,
                 arguments.display_fps,
                 arguments.inference_fps,
+                arguments.zoom,
             )
         parser.error(f"unsupported command: {arguments.command}")
     except (

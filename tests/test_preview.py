@@ -100,7 +100,7 @@ class InferenceWorkerTest(unittest.TestCase):
         evidence = FakeDetector().analyze(1)
         result = FakeDetector().classify(evidence)
         performance = PreviewPerformance(
-            camera=CameraProperties(1280, 720, 60.0),
+            camera=CameraProperties(1280, 720, 60.0, zoom=0.0, zoom_supported=True),
             target_display_fps=60.0,
             measured_display_fps=58.5,
             target_inference_fps=10.0,
@@ -110,6 +110,7 @@ class InferenceWorkerTest(unittest.TestCase):
         lines = evidence_lines(evidence, result, AppConfig(), performance)
 
         self.assertIn("CAMERA: 1280x720 (driver 60.0 FPS)", lines)
+        self.assertIn("ZOOM: 0 (widest)", lines)
         self.assertIn("DISPLAY: 58.5 / 60.0 FPS", lines)
         self.assertIn("INFERENCE: 46.2 ms / 10.0 FPS target", lines)
 

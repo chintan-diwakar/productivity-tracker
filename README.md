@@ -93,6 +93,10 @@ The preview requests `1280x720` at `60 FPS`. It runs inference on smaller frames
 
 The side panel shows the measured display rate and inference latency. The camera can supply a lower rate than the requested rate.
 
+The preview sets camera zoom to `0`. This value gives the widest view on supported cameras.
+
+The zoom setting cannot increase the physical field of view of the camera lens.
+
 The preview does not save frames or write session logs. Press `Q` or `Esc` to close it.
 
 Use a lower threshold for a phone-detection experiment:
@@ -105,6 +109,12 @@ Set different preview and inference rates:
 
 ```bash
 .venv/bin/desk-focus preview --display-fps 60 --inference-fps 10
+```
+
+Set the widest camera view explicitly:
+
+```bash
+.venv/bin/desk-focus preview --zoom 0
 ```
 
 ## Data

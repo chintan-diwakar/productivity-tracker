@@ -28,6 +28,8 @@ class CameraProperties:
     width: int
     height: int
     fps: float
+    zoom: float = 0.0
+    zoom_supported: bool = False
 
 
 class OpenCVCamera:
@@ -41,14 +43,19 @@ class OpenCVCamera:
         *,
         capture_fps: float | None = None,
         prefer_mjpeg: bool = False,
+        zoom: float | None = None,
     ) -> None:
         if capture_fps is not None and capture_fps <= 0.0:
             raise ValueError("capture_fps must be positive")
+        if zoom is not None and zoom < 0.0:
+            raise ValueError("zoom must be zero or greater")
         self._camera_index = camera_index
         self._frame_width = frame_width
         self._frame_height = frame_height
         self._capture_fps = capture_fps
         self._prefer_mjpeg = prefer_mjpeg
+        self._zoom = zoom
+        self._zoom_supported = False
         self._cv2: ModuleType | None = None
         self._capture: Any = None
 
@@ -68,6 +75,8 @@ class OpenCVCamera:
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._frame_height)
         if self._capture_fps is not None:
             capture.set(cv2.CAP_PROP_FPS, self._capture_fps)
+        if self._zoom is not None:
+            self._zoom_supported = bool(capture.set(cv2.CAP_PROP_ZOOM, self._zoom))
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._cv2 = cv2
         self._capture = capture
@@ -94,6 +103,8 @@ class OpenCVCamera:
             width=round(self._capture.get(self._cv2.CAP_PROP_FRAME_WIDTH)),
             height=round(self._capture.get(self._cv2.CAP_PROP_FRAME_HEIGHT)),
             fps=float(self._capture.get(self._cv2.CAP_PROP_FPS)),
+            zoom=float(self._capture.get(self._cv2.CAP_PROP_ZOOM)),
+            zoom_supported=self._zoom_supported,
         )
 
     def close(self) -> None:
@@ -101,6 +112,7 @@ class OpenCVCamera:
             self._capture.release()
         self._capture = None
         self._cv2 = None
+        self._zoom_supported = False
 
     def __enter__(self) -> OpenCVCamera:
         self.open()
