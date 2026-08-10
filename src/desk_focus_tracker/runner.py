@@ -9,6 +9,7 @@ from typing import Protocol
 from desk_focus_tracker.camera import CameraError
 from desk_focus_tracker.config import AppConfig
 from desk_focus_tracker.detector import Detector
+from desk_focus_tracker.diagnostics import DiagnosticCaptureError, DiagnosticFrameWriter
 from desk_focus_tracker.domain import DetectionResult, Status
 from desk_focus_tracker.idle import IdleMonitor, NullIdleMonitor
 from desk_focus_tracker.policy import AwayPolicy
@@ -36,6 +37,8 @@ class TrackerRunner:
         status_callback: Callable[[DetectionResult], None] | None = None,
         sample_callback: Callable[[datetime], None] | None = None,
         idle_monitor: IdleMonitor | None = None,
+        diagnostic_writer: DiagnosticFrameWriter | None = None,
+        diagnostic_error_callback: Callable[[str], None] | None = None,
     ) -> None:
         self._config = config
         self._camera = camera
@@ -44,6 +47,8 @@ class TrackerRunner:
         self._status_callback = status_callback or (lambda _result: None)
         self._sample_callback = sample_callback or (lambda _sampled_at: None)
         self._idle_monitor = idle_monitor or NullIdleMonitor()
+        self._diagnostic_writer = diagnostic_writer
+        self._diagnostic_error_callback = diagnostic_error_callback or (lambda _message: None)
         self._condition = threading.Condition()
         self._stop_requested = False
         self._pause_requested = False
@@ -148,7 +153,11 @@ class TrackerRunner:
                 try:
                     self._detector.close()
                 finally:
-                    self._close_camera()
+                    try:
+                        if self._diagnostic_writer is not None:
+                            self._diagnostic_writer.close()
+                    finally:
+                        self._close_camera()
 
     def _sample_and_update(self, now: datetime, monotonic_seconds: float) -> None:
         if not self._ensure_camera_open(now, monotonic_seconds):
@@ -195,7 +204,16 @@ class TrackerRunner:
         frame: object | None = None
         try:
             frame = self._camera.read()
-            return self._detector.detect(frame)
+            result = self._detector.detect(frame)
+            writer = self._diagnostic_writer
+            if writer is not None:
+                try:
+                    if writer.capture(frame, result, datetime.now().astimezone()):
+                        self._logger.record_diagnostic_frame()
+                except DiagnosticCaptureError as error:
+                    self._diagnostic_writer = None
+                    self._diagnostic_error_callback(str(error))
+            return result
         except CameraError as error:
             return DetectionResult(Status.CAMERA_ERROR, 1.0, str(error))
         finally:

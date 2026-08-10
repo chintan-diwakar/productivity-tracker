@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import threading
 import time
 from collections import deque
@@ -141,7 +142,13 @@ def evidence_lines(
     if not evidence.phone_boxes:
         hand = "HAND: NOT RUN (phone absent)"
     elif evidence.hand_points:
-        hand = f"HAND: DETECTED ({len(evidence.hand_points)} points)"
+        hand_count = max(1, math.ceil(len(evidence.hand_points) / 21))
+        hand_label = "hand" if hand_count == 1 else "hands"
+        point_label = "point" if len(evidence.hand_points) == 1 else "points"
+        hand = (
+            f"HAND: DETECTED ({hand_count} {hand_label}, "
+            f"{len(evidence.hand_points)} {point_label})"
+        )
     else:
         hand = "HAND: NOT DETECTED"
 
@@ -162,7 +169,8 @@ def evidence_lines(
         hand,
         head,
         f"REASON: {result.reason}",
-        f"OBJECT THRESHOLD: {config.object_score_threshold:.2f}",
+        f"PHONE THRESHOLD: {config.object_score_threshold:.2f}",
+        f"PERSON THRESHOLD: {config.person_score_threshold:.2f}",
     )
     if performance is None:
         return lines

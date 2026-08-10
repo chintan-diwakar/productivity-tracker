@@ -37,6 +37,8 @@ class VisionEvidence:
     head_pitch_degrees: float | None
     person_boxes: tuple[NormalizedBox, ...] = ()
     face_boxes: tuple[NormalizedBox, ...] = ()
+    person_scores: tuple[float, ...] = ()
+    phone_scores: tuple[float, ...] = ()
 
 
 def minimum_phone_hand_distance(evidence: VisionEvidence) -> float | None:
@@ -89,16 +91,18 @@ class BehaviorClassifier:
         )
 
         if evidence.face_count == 0:
-            if (
-                evidence.phone_boxes
-                and phone_is_near_hand
-                and now <= self._downward_pose_valid_until
-            ):
-                confidence = max(0.20, evidence.phone_confidence)
+            if evidence.phone_boxes and phone_is_near_hand:
+                recent_downward_pose = now <= self._downward_pose_valid_until
+                confidence_scale = 0.90 if recent_downward_pose else 0.75
+                confidence = max(0.20, evidence.phone_confidence * confidence_scale)
                 return self._result(
                     Status.POSSIBLE_PHONE_USE,
                     confidence,
-                    "phone_near_hand_and_recent_downward_head_pose",
+                    (
+                        "phone_near_hand_and_recent_downward_head_pose"
+                        if recent_downward_pose
+                        else "phone_near_hand_with_face_occluded"
+                    ),
                     evidence,
                 )
             confidence = max(0.20, evidence.person_confidence)
@@ -110,6 +114,14 @@ class BehaviorClassifier:
             )
 
         if evidence.head_pitch_degrees is None:
+            if evidence.phone_boxes and phone_is_near_hand:
+                confidence = max(0.20, evidence.phone_confidence * 0.75)
+                return self._result(
+                    Status.POSSIBLE_PHONE_USE,
+                    confidence,
+                    "phone_near_hand_without_head_pose",
+                    evidence,
+                )
             return self._result(Status.UNCERTAIN, 0.20, "head_pose_unavailable", evidence)
 
         relative_pitch = self._head_pitch_sign * (
@@ -121,12 +133,17 @@ class BehaviorClassifier:
         else:
             self._downward_pose_valid_until = 0.0
 
-        if evidence.phone_boxes and phone_is_near_hand and head_is_down:
-            confidence = max(0.20, evidence.phone_confidence)
+        if evidence.phone_boxes and phone_is_near_hand:
+            confidence_scale = 1.0 if head_is_down else 0.75
+            confidence = max(0.20, evidence.phone_confidence * confidence_scale)
             return self._result(
                 Status.POSSIBLE_PHONE_USE,
                 confidence,
-                "phone_near_hand_and_downward_head_pose",
+                (
+                    "phone_near_hand_and_downward_head_pose"
+                    if head_is_down
+                    else "phone_near_hand_without_downward_head_pose"
+                ),
                 evidence,
             )
 
@@ -135,15 +152,6 @@ class BehaviorClassifier:
                 Status.LOOKING_DOWN,
                 0.70,
                 "downward_head_pose_without_hand_phone",
-                evidence,
-            )
-
-        if evidence.phone_boxes and phone_is_near_hand:
-            confidence = max(0.20, evidence.phone_confidence)
-            return self._result(
-                Status.UNCERTAIN,
-                confidence,
-                "phone_near_hand_without_downward_head_pose",
                 evidence,
             )
 
@@ -163,10 +171,17 @@ class BehaviorClassifier:
     ) -> DetectionResult:
         metrics = [
             ("person_count", float(evidence.person_count)),
+            ("person_confidence", evidence.person_confidence),
             ("face_count", float(evidence.face_count)),
             ("phone_count", float(len(evidence.phone_boxes))),
+            ("phone_confidence", evidence.phone_confidence),
+            ("hand_count", float(math.ceil(len(evidence.hand_points) / 21))),
             ("hand_point_count", float(len(evidence.hand_points))),
         ]
+        if evidence.person_scores:
+            metrics.append(("person_min_confidence", min(evidence.person_scores)))
+        if evidence.phone_scores:
+            metrics.append(("phone_min_confidence", min(evidence.phone_scores)))
         if evidence.head_pitch_degrees is not None:
             metrics.append(("head_pitch_degrees", evidence.head_pitch_degrees))
         distance = minimum_phone_hand_distance(evidence)

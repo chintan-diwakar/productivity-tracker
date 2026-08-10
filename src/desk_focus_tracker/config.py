@@ -61,11 +61,14 @@ class AppConfig:
     data_dir: Path = Path("data")
     model_dir: Path = Path("models")
     detector_backend: str = "mediapipe"
-    object_score_threshold: float = 0.35
+    object_score_threshold: float = 0.15
+    person_score_threshold: float = 0.35
     downward_pitch_threshold_degrees: float = 15.0
     neutral_head_pitch_degrees: float = 0.0
     head_pitch_sign: float = 1.0
     phone_hand_max_distance: float = 0.2
+    save_diagnostic_frames: bool = False
+    diagnostic_frame_limit: int = 3600
     configuration_version: int = 1
 
     def __post_init__(self) -> None:
@@ -97,12 +100,18 @@ class AppConfig:
             errors.append(f"unsupported detector_backend: {self.detector_backend}")
         if not 0.0 <= self.object_score_threshold <= 1.0:
             errors.append("object_score_threshold must be between 0.0 and 1.0")
+        if not 0.0 <= self.person_score_threshold <= 1.0:
+            errors.append("person_score_threshold must be between 0.0 and 1.0")
         if not 0.0 < self.downward_pitch_threshold_degrees <= 90.0:
             errors.append("downward_pitch_threshold_degrees must be greater than 0.0")
         if self.head_pitch_sign not in {-1.0, 1.0}:
             errors.append("head_pitch_sign must be -1.0 or 1.0")
         if not 0.0 < self.phone_hand_max_distance <= 1.0:
             errors.append("phone_hand_max_distance must be greater than 0.0 and not more than 1.0")
+        if not isinstance(self.save_diagnostic_frames, bool):
+            errors.append("save_diagnostic_frames must be true or false")
+        if self.diagnostic_frame_limit <= 0:
+            errors.append("diagnostic_frame_limit must be positive")
         if self.configuration_version <= 0:
             errors.append("configuration_version must be positive")
         if errors:

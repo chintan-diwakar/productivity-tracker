@@ -12,10 +12,13 @@
   "data_dir": "data",
   "model_dir": "models",
   "detector_backend": "mediapipe",
-  "object_score_threshold": 0.35,
+  "object_score_threshold": 0.15,
+  "person_score_threshold": 0.35,
   "downward_pitch_threshold_degrees": 15.0,
   "neutral_head_pitch_degrees": 0.0,
   "head_pitch_sign": 1.0,
   "phone_hand_max_distance": 0.2,
+  "save_diagnostic_frames": false,
+  "diagnostic_frame_limit": 3600,
   "configuration_version": 1
 }

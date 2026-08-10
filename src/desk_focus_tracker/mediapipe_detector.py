@@ -32,8 +32,21 @@ def import_mediapipe() -> ModuleType:
     return mediapipe
 
 
+def _category_score_is_accepted(
+    category_name: str,
+    score: float,
+    phone_score_threshold: float,
+    person_score_threshold: float,
+) -> bool:
+    if category_name == "cell phone":
+        return score >= phone_score_threshold
+    if category_name == "person":
+        return score >= person_score_threshold
+    return False
+
+
 class MediaPipeDetector:
-    model_version = MODEL_SET_VERSION
+    model_version = f"{MODEL_SET_VERSION}-classifier-v2"
 
     def __init__(self, config: AppConfig) -> None:
         store = ModelStore(config.model_dir)
@@ -43,6 +56,8 @@ class MediaPipeDetector:
         self._cv2 = import_cv2()
         self._closed = False
         self._hand_landmarker: Any | None = None
+        self._phone_score_threshold = config.object_score_threshold
+        self._person_score_threshold = config.person_score_threshold
         running_mode = self._mp.tasks.vision.RunningMode.IMAGE
         base_options = self._mp.tasks.BaseOptions
 
@@ -51,8 +66,11 @@ class MediaPipeDetector:
                 model_asset_path=str(store.path_for(OBJECT_DETECTOR_MODEL)),
             ),
             running_mode=running_mode,
-            max_results=5,
-            score_threshold=config.object_score_threshold,
+            max_results=10,
+            score_threshold=min(
+                config.object_score_threshold,
+                config.person_score_threshold,
+            ),
             category_allowlist=["person", "cell phone"],
         )
         face_options = self._mp.tasks.vision.FaceLandmarkerOptions(
@@ -101,6 +119,8 @@ class MediaPipeDetector:
         phone_confidence = 0.0
         person_boxes: list[NormalizedBox] = []
         phone_boxes: list[NormalizedBox] = []
+        person_scores: list[float] = []
+        phone_scores: list[float] = []
 
         for detection in object_result.detections:
             if not detection.categories:
@@ -108,12 +128,21 @@ class MediaPipeDetector:
             category = detection.categories[0]
             category_name = category.category_name or category.display_name
             score = float(category.score or 0.0)
+            if not _category_score_is_accepted(
+                category_name,
+                score,
+                self._phone_score_threshold,
+                self._person_score_threshold,
+            ):
+                continue
             if category_name == "person":
                 person_count += 1
                 person_confidence = max(person_confidence, score)
+                person_scores.append(score)
                 person_boxes.append(self._normalize_box(detection.bounding_box, width, height))
             elif category_name == "cell phone":
                 phone_confidence = max(phone_confidence, score)
+                phone_scores.append(score)
                 phone_boxes.append(self._normalize_box(detection.bounding_box, width, height))
 
         hand_points: list[Point] = []
@@ -155,6 +184,8 @@ class MediaPipeDetector:
             head_pitch_degrees=head_pitch_degrees,
             person_boxes=tuple(person_boxes),
             face_boxes=tuple(face_boxes),
+            person_scores=tuple(person_scores),
+            phone_scores=tuple(phone_scores),
         )
 
     @staticmethod

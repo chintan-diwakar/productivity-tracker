@@ -21,6 +21,7 @@ from desk_focus_tracker.config import (
 )
 from desk_focus_tracker.desktop import DesktopDependencyError, run_desktop
 from desk_focus_tracker.detector import create_detector
+from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
 from desk_focus_tracker.domain import DetectionResult
 from desk_focus_tracker.evaluation import EvaluationError, write_evaluation_report
 from desk_focus_tracker.idle import create_idle_monitor
@@ -76,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     preview_parser.add_argument(
         "--score-threshold",
         type=float,
-        help="override the object detection score threshold",
+        help="override the phone detection score threshold",
     )
     preview_parser.add_argument(
         "--width",
@@ -180,6 +181,15 @@ def run_tracker(config_path: Path | None, duration_seconds: float | None) -> int
             config.data_dir,
             model_version=detector.model_version,
             configuration_version=config.configuration_version,
+            diagnostic_output_enabled=config.save_diagnostic_frames,
+        )
+        diagnostic_writer = (
+            DiagnosticFrameWriter(
+                logger.session_directory,
+                config.diagnostic_frame_limit,
+            )
+            if config.save_diagnostic_frames
+            else None
         )
         runner = TrackerRunner(
             config,
@@ -188,6 +198,11 @@ def run_tracker(config_path: Path | None, duration_seconds: float | None) -> int
             logger,
             show_status,
             idle_monitor=create_idle_monitor(),
+            diagnostic_writer=diagnostic_writer,
+            diagnostic_error_callback=lambda message: print(
+                f"Diagnostic output stopped: {message}. Tracking continues.",
+                file=sys.stderr,
+            ),
         )
 
         def request_stop(_signal_number: int, _frame: object) -> None:

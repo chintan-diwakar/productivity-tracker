@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from desk_focus_tracker.config import load_config
 from desk_focus_tracker.desktop import STATUS_LABELS, DesktopBusyError, DesktopController
 from desk_focus_tracker.domain import Status
 
@@ -58,6 +59,16 @@ class DesktopCameraOperationTest(unittest.TestCase):
 
             stop.assert_called_once_with()
             self.assertEqual(controller.config.camera_index, 1)
+
+    def test_saves_diagnostic_setting_for_the_next_session(self) -> None:
+        with TemporaryDirectory() as directory:
+            config_path = Path(directory) / "configuration.json"
+            controller = DesktopController(config_path)
+
+            controller.save_diagnostic_setting(True)
+
+            self.assertTrue(controller.config.save_diagnostic_frames)
+            self.assertTrue(load_config(config_path).save_diagnostic_frames)
 
 
 if __name__ == "__main__":

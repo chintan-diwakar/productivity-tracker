@@ -36,6 +36,16 @@ class AppConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(ConfigurationError, "minimum_matching_samples"):
             AppConfig(window_samples=3, minimum_matching_samples=4)
 
+    def test_rejects_invalid_diagnostic_frame_limit(self) -> None:
+        with self.assertRaisesRegex(ConfigurationError, "diagnostic_frame_limit"):
+            AppConfig(diagnostic_frame_limit=0)
+
+    def test_uses_separate_phone_and_person_thresholds(self) -> None:
+        config = AppConfig()
+
+        self.assertEqual(config.object_score_threshold, 0.15)
+        self.assertEqual(config.person_score_threshold, 0.35)
+
     def test_converts_direct_path_strings(self) -> None:
         config = AppConfig(data_dir="~/data", model_dir="~/models")
 
