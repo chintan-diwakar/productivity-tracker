@@ -6,6 +6,8 @@ __pycache__/
 .ruff_cache/
 build/
 dist/
+packaging/generated/
+packaging/stage/
 data/
 configuration.json
 models/
@@ -13,3 +15,5 @@ models/
 *.pt
 *.task
 *.tflite
+*.deb
+*.dmg

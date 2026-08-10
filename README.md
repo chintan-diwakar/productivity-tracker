@@ -2,7 +2,7 @@
 
 Desk Focus Tracker estimates desk-focus time from a webcam. All frame processing stays on the local computer.
 
-The prototype combines person, phone, face, hand, and head-direction signals. It uses MediaPipe Tasks and local model files.
+The application combines person, phone, face, hand, and head-direction signals. It uses MediaPipe Tasks and local model files.
 
 See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case specification.
 
@@ -17,9 +17,41 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 - A diagnostic window shows the frame, detector boxes, hand points, and missing evidence.
 - An away policy delays `AWAY` classification.
 - A rolling window prevents one-frame status changes.
+- System idle detection stops camera work during user inactivity.
+- Start, pause, timed pause, calibration, and preview controls are available in a small desktop window.
+- The application shows focused active time and classified coverage.
 - JSON Lines files store status transitions.
 - JSON files store daily summaries.
-- Unit tests cover configuration, model downloads, classification, policies, smoothing, and storage.
+- Local midnight splits durations between the correct daily files.
+- A process lock prevents two trackers from writing to one data directory.
+- Local history has a retention limit and a confirmed deletion action.
+
+## Install a desktop package
+
+The first pre-release supports these systems:
+
+- Ubuntu 24.04 on AMD64.
+- macOS 13 or a later version on Apple Silicon.
+
+Download the package and its checksum from the GitHub release.
+
+On Ubuntu, install the `.deb` file:
+
+```bash
+sudo apt install ./desk-focus-tracker_0.1.0_amd64.deb
+```
+
+Open **Desk Focus Tracker** from the application menu.
+
+On macOS, open the `.dmg` file. Move **Desk Focus Tracker** to the Applications folder.
+
+The application starts in a paused state. Select **Download models** before the first tracking session.
+
+The first model download is about `16 MB`. Tracking does not download models.
+
+The macOS release is signed and notarized. Manual workflow builds can create an unsigned test package.
+
+See [docs/RELEASING.md](docs/RELEASING.md) for package build and release instructions.
 
 ## Development setup
 
@@ -140,7 +172,7 @@ The download command verifies each model with a pinned SHA-256 value. Normal app
 
 The runtime uses a detector interface. The default adapter uses three MediaPipe tasks.
 
-The object detector runs first. The hand model runs only when the object detector finds a phone.
+The object detector runs first. The hand model runs only after the object detector finds a phone.
 
 The application retains the OpenCV frontal-face adapter as a fallback. Set `detector_backend` to `opencv_face` to use it.
 
@@ -150,6 +182,19 @@ See [docs/DETECTOR_STRATEGY.md](docs/DETECTOR_STRATEGY.md) for the classifier ru
 
 See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for the first Ubuntu measurement.
 
+See [docs/METRICS.md](docs/METRICS.md) for metric definitions and evaluation input.
+
+## First-release limits
+
+- The package uses about `400 MB` after installation.
+- The MediaPipe process used `301-309 MB` in the first memory benchmark.
+- The first detector does not meet the original `150 MB` memory goal.
+- Phone-use precision does not have a real-world baseline yet.
+- The desktop interface is a small fallback window. It is not a tray icon yet.
+- The macOS package supports Apple Silicon only.
+
+Version `0.1.0` is a pre-release for personal testing. Do not describe its classifications as measured accuracy.
+
 ## Privacy
 
 - The application does not send frames to a server.
@@ -158,4 +203,4 @@ See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for the first Ubuntu measurement.
 - The application does not download models during tracking.
 - The application shows errors instead of inventing a productivity label.
 
-This project is an early prototype. Do not use its output for employment or performance decisions.
+Do not use this application for employment or performance decisions.

@@ -3,16 +3,14 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import date, datetime
+from contextlib import suppress
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
-from desk_focus_tracker.domain import (
-    DetectionResult,
-    StatisticsCategory,
-    Status,
-    statistics_category,
-)
+from desk_focus_tracker.domain import DetectionResult, Status
+from desk_focus_tracker.metrics import DailyMetrics, calculate_daily_metrics
 
 
 class StorageError(RuntimeError):
@@ -22,7 +20,7 @@ class StorageError(RuntimeError):
 class JsonlSessionLogger:
     """Store session events and rebuild daily summaries from valid records."""
 
-    schema_version = 1
+    schema_version = 2
 
     def __init__(
         self,
@@ -37,7 +35,12 @@ class JsonlSessionLogger:
         self._started_at: datetime | None = None
         self._started_monotonic: float | None = None
         self._closed = False
+        self._lock = RLock()
         self._prepare_directory()
+
+    @property
+    def data_dir(self) -> Path:
+        return self._data_dir
 
     def _prepare_directory(self) -> None:
         try:
@@ -49,71 +52,188 @@ class JsonlSessionLogger:
             ) from error
 
     def start(self, initial: DetectionResult, now: datetime, monotonic_seconds: float) -> None:
-        if self._current is not None:
-            raise StorageError("session logger already started")
-        if now.tzinfo is None:
-            raise StorageError("event timestamps must include a UTC offset")
-
-        self._append_event(
-            now,
-            {
-                "event_type": "session_start",
-                "status": initial.status.value,
-                "confidence": initial.confidence,
-                "reason": initial.reason,
-                "metrics": dict(initial.metrics),
-            },
-        )
-        self._current = initial
-        self._started_at = now
-        self._started_monotonic = monotonic_seconds
+        with self._lock:
+            if self._current is not None:
+                raise StorageError("session logger already started")
+            self._require_offset(now)
+            self._append_event(
+                now,
+                {
+                    "event_type": "session_start",
+                    "status": initial.status.value,
+                    "confidence": initial.confidence,
+                    "reason": initial.reason,
+                    "metrics": dict(initial.metrics),
+                },
+            )
+            self._current = initial
+            self._started_at = now
+            self._started_monotonic = monotonic_seconds
 
     def transition(self, result: DetectionResult, now: datetime, monotonic_seconds: float) -> None:
-        current, _, started_monotonic = self._require_active()
-        if result.status is current.status:
-            return
+        with self._lock:
+            current, started_at, started_monotonic = self._require_active()
+            if result.status is current.status:
+                return
 
-        elapsed = max(0.0, monotonic_seconds - started_monotonic)
-        self._append_event(
-            now,
-            {
-                "event_type": "status_transition",
-                "status": result.status.value,
-                "confidence": result.confidence,
-                "reason": result.reason,
-                "metrics": dict(result.metrics),
-                "previous_status": current.status.value,
-                "elapsed_previous_seconds": elapsed,
-            },
-        )
-        self._current = result
-        self._started_at = now
-        self._started_monotonic = monotonic_seconds
-        self.rebuild_summary(now.date(), generated_at=now)
+            elapsed = max(0.0, monotonic_seconds - started_monotonic)
+            affected_days = self._append_duration(
+                started_at,
+                now,
+                elapsed,
+                current,
+                {
+                    "event_type": "status_transition",
+                    "status": result.status.value,
+                    "confidence": result.confidence,
+                    "reason": result.reason,
+                    "metrics": dict(result.metrics),
+                },
+            )
+            self._current = result
+            self._started_at = now
+            self._started_monotonic = monotonic_seconds
+            self._rebuild_days(affected_days, now)
+
+    def checkpoint(self, now: datetime, monotonic_seconds: float) -> None:
+        """Close the current daily segment after the local date changes."""
+        with self._lock:
+            current, started_at, started_monotonic = self._require_active()
+            if started_at.date() == now.date():
+                return
+
+            elapsed = max(0.0, monotonic_seconds - started_monotonic)
+            affected_days = self._append_duration(
+                started_at,
+                now,
+                elapsed,
+                current,
+                {
+                    "event_type": "daily_checkpoint",
+                    "status": current.status.value,
+                    "confidence": current.confidence,
+                    "reason": current.reason,
+                    "metrics": dict(current.metrics),
+                },
+            )
+            self._started_at = now
+            self._started_monotonic = monotonic_seconds
+            self._rebuild_days(affected_days, now)
 
     def close(self, now: datetime, monotonic_seconds: float) -> None:
-        if self._closed:
-            return
-        if self._current is None:
-            self._closed = True
-            return
+        with self._lock:
+            if self._closed:
+                return
+            if self._current is None:
+                self._closed = True
+                return
 
-        current, _, started_monotonic = self._require_active()
-        elapsed = max(0.0, monotonic_seconds - started_monotonic)
-        self._append_event(
-            now,
-            {
-                "event_type": "session_end",
-                "status": current.status.value,
-                "confidence": current.confidence,
-                "reason": current.reason,
-                "metrics": dict(current.metrics),
-                "previous_status": current.status.value,
-                "elapsed_previous_seconds": elapsed,
-            },
-        )
-        self.rebuild_summary(now.date(), generated_at=now)
-        self._closed = True
+            current, started_at, started_monotonic = self._require_active()
+            elapsed = max(0.0, monotonic_seconds - started_monotonic)
+            affected_days = self._append_duration(
+                started_at,
+                now,
+                elapsed,
+                current,
+                {
+                    "event_type": "session_end",
+                    "status": current.status.value,
+                    "confidence": current.confidence,
+                    "reason": current.reason,
+                    "metrics": dict(current.metrics),
+                },
+            )
+            self._rebuild_days(affected_days, now)
+            self._closed = True
+
+    def snapshot(self, day: date, now: datetime, monotonic_seconds: float) -> DailyMetrics:
+        """Return saved totals plus the open segment without changing the log."""
+        with self._lock:
+            seconds_by_status = self._read_status_seconds(day)
+            if self._current is not None and not self._closed:
+                current, started_at, started_monotonic = self._require_active()
+                elapsed = max(0.0, monotonic_seconds - started_monotonic)
+                for slice_day, slice_seconds in _split_duration_by_day(started_at, now, elapsed):
+                    if slice_day == day:
+                        seconds_by_status[current.status.value] += slice_seconds
+            return calculate_daily_metrics(day, seconds_by_status)
+
+    def rebuild_summary(
+        self,
+        day: date,
+        generated_at: datetime | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            metrics = calculate_daily_metrics(day, self._read_status_seconds(day))
+            summary = {
+                "schema_version": self.schema_version,
+                "generated_at": (generated_at or datetime.now().astimezone()).isoformat(),
+                **metrics.to_mapping(),
+            }
+            self._write_summary_atomic(day, summary)
+            return summary
+
+    def prune(self, retention_days: int, today: date | None = None) -> tuple[Path, ...]:
+        if retention_days <= 0:
+            raise ValueError("retention_days must be positive")
+        cutoff = (today or datetime.now().astimezone().date()) - timedelta(days=retention_days - 1)
+        removed: list[Path] = []
+        with self._lock:
+            for path in self._history_paths():
+                file_day = _history_day(path)
+                if file_day is not None and file_day < cutoff:
+                    try:
+                        path.unlink()
+                    except OSError as error:
+                        raise StorageError(f"cannot delete history file {path}: {error}") from error
+                    removed.append(path)
+        return tuple(removed)
+
+    def delete_history(self) -> tuple[Path, ...]:
+        with self._lock:
+            if self._current is not None and not self._closed:
+                raise StorageError("stop tracking before you delete history")
+            removed: list[Path] = []
+            for path in self._history_paths():
+                try:
+                    path.unlink()
+                except OSError as error:
+                    raise StorageError(f"cannot delete history file {path}: {error}") from error
+                removed.append(path)
+            return tuple(removed)
+
+    def _append_duration(
+        self,
+        started_at: datetime,
+        ended_at: datetime,
+        elapsed: float,
+        previous: DetectionResult,
+        final_payload: dict[str, Any],
+    ) -> set[date]:
+        affected_days: set[date] = set()
+        slices = _split_duration_by_day(started_at, ended_at, elapsed)
+        for index, (event_day, slice_seconds) in enumerate(slices):
+            is_final = index == len(slices) - 1
+            payload = (
+                dict(final_payload)
+                if is_final
+                else {
+                    "event_type": "daily_checkpoint",
+                    "status": previous.status.value,
+                    "confidence": previous.confidence,
+                    "reason": previous.reason,
+                    "metrics": dict(previous.metrics),
+                }
+            )
+            payload["previous_status"] = previous.status.value
+            payload["elapsed_previous_seconds"] = slice_seconds
+            self._append_event(ended_at, payload, event_day=event_day)
+            affected_days.add(event_day)
+        return affected_days
+
+    def _rebuild_days(self, days: set[date], generated_at: datetime) -> None:
+        for affected_day in sorted(days):
+            self.rebuild_summary(affected_day, generated_at=generated_at)
 
     def _require_active(self) -> tuple[DetectionResult, datetime, float]:
         if self._closed:
@@ -122,10 +242,14 @@ class JsonlSessionLogger:
             raise StorageError("session logger is not started")
         return self._current, self._started_at, self._started_monotonic
 
-    def _append_event(self, now: datetime, payload: dict[str, Any]) -> None:
-        if now.tzinfo is None:
-            raise StorageError("event timestamps must include a UTC offset")
-
+    def _append_event(
+        self,
+        now: datetime,
+        payload: dict[str, Any],
+        *,
+        event_day: date | None = None,
+    ) -> None:
+        self._require_offset(now)
         event = {
             "schema_version": self.schema_version,
             "timestamp": now.isoformat(),
@@ -133,7 +257,7 @@ class JsonlSessionLogger:
             "configuration_version": self._configuration_version,
             **payload,
         }
-        path = self._event_path(now.date())
+        path = self._event_path(event_day or now.date())
         encoded = (json.dumps(event, separators=(",", ":")) + "\n").encode("utf-8")
         flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
         try:
@@ -145,48 +269,25 @@ class JsonlSessionLogger:
         except OSError as error:
             raise StorageError(f"cannot write event log {path}: {error}") from error
 
-    def rebuild_summary(self, day: date, generated_at: datetime | None = None) -> dict[str, Any]:
+    def _read_status_seconds(self, day: date) -> dict[str, float]:
         seconds_by_status = {status.value: 0.0 for status in Status}
         event_path = self._event_path(day)
-        if event_path.exists():
-            try:
-                with event_path.open("r", encoding="utf-8") as stream:
-                    for line in stream:
-                        try:
-                            event = json.loads(line)
-                            previous_status = Status(event["previous_status"])
-                            elapsed = float(event["elapsed_previous_seconds"])
-                        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                            continue
-                        if elapsed >= 0.0:
-                            seconds_by_status[previous_status.value] += elapsed
-            except OSError as error:
-                raise StorageError(f"cannot read event log {event_path}: {error}") from error
-
-        category_seconds = {category.value: 0.0 for category in StatisticsCategory}
-        for status in Status:
-            category = statistics_category(status)
-            category_seconds[category.value] += seconds_by_status[status.value]
-
-        classified = (
-            category_seconds[StatisticsCategory.PRODUCTIVE.value]
-            + category_seconds[StatisticsCategory.UNPRODUCTIVE.value]
-        )
-        productive_ratio = (
-            category_seconds[StatisticsCategory.PRODUCTIVE.value] / classified
-            if classified > 0.0
-            else None
-        )
-        summary = {
-            "schema_version": self.schema_version,
-            "date": day.isoformat(),
-            "generated_at": (generated_at or datetime.now().astimezone()).isoformat(),
-            "status_seconds": seconds_by_status,
-            "category_seconds": category_seconds,
-            "productive_ratio": productive_ratio,
-        }
-        self._write_summary_atomic(day, summary)
-        return summary
+        if not event_path.exists():
+            return seconds_by_status
+        try:
+            with event_path.open("r", encoding="utf-8") as stream:
+                for line in stream:
+                    try:
+                        event = json.loads(line)
+                        previous_status = Status(event["previous_status"])
+                        elapsed = float(event["elapsed_previous_seconds"])
+                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                        continue
+                    if elapsed >= 0.0:
+                        seconds_by_status[previous_status.value] += elapsed
+        except OSError as error:
+            raise StorageError(f"cannot read event log {event_path}: {error}") from error
+        return seconds_by_status
 
     def _write_summary_atomic(self, day: date, summary: dict[str, Any]) -> None:
         destination = self._summary_path(day)
@@ -212,8 +313,72 @@ class JsonlSessionLogger:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
+    def _history_paths(self) -> tuple[Path, ...]:
+        return tuple(
+            sorted((*self._data_dir.glob("events-*.jsonl"), *self._data_dir.glob("summary-*.json")))
+        )
+
     def _event_path(self, day: date) -> Path:
         return self._data_dir / f"events-{day.isoformat()}.jsonl"
 
     def _summary_path(self, day: date) -> Path:
         return self._data_dir / f"summary-{day.isoformat()}.json"
+
+    @staticmethod
+    def _require_offset(value: datetime) -> None:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise StorageError("event timestamps must include a UTC offset")
+
+
+def _split_duration_by_day(
+    started_at: datetime,
+    ended_at: datetime,
+    elapsed_seconds: float,
+) -> tuple[tuple[date, float], ...]:
+    if elapsed_seconds <= 0.0 or started_at.date() == ended_at.date():
+        return ((ended_at.date(), max(0.0, elapsed_seconds)),)
+
+    boundaries = [started_at]
+    next_day = started_at.date() + timedelta(days=1)
+    while next_day <= ended_at.date():
+        timezone = ended_at.tzinfo if next_day == ended_at.date() else started_at.tzinfo
+        boundaries.append(datetime.combine(next_day, time.min, tzinfo=timezone))
+        next_day += timedelta(days=1)
+    boundaries.append(ended_at)
+
+    wall_seconds = [
+        max(0.0, (end - start).total_seconds())
+        for start, end in zip(boundaries, boundaries[1:], strict=False)
+    ]
+    total_wall_seconds = sum(wall_seconds)
+    if total_wall_seconds <= 0.0:
+        return ((ended_at.date(), elapsed_seconds),)
+
+    slices: list[tuple[date, float]] = []
+    allocated = 0.0
+    for index, seconds in enumerate(wall_seconds):
+        slice_seconds = (
+            elapsed_seconds - allocated
+            if index == len(wall_seconds) - 1
+            else elapsed_seconds * seconds / total_wall_seconds
+        )
+        slices.append((boundaries[index].date(), max(0.0, slice_seconds)))
+        allocated += slice_seconds
+    return tuple(slices)
+
+
+def _history_day(path: Path) -> date | None:
+    name = path.name
+    prefix = (
+        "events-"
+        if name.startswith("events-")
+        else "summary-"
+        if name.startswith("summary-")
+        else None
+    )
+    if prefix is None:
+        return None
+    suffix = ".jsonl" if prefix == "events-" else ".json"
+    with suppress(ValueError):
+        return date.fromisoformat(name.removeprefix(prefix).removesuffix(suffix))
+    return None

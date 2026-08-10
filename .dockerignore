@@ -1,0 +1,10 @@
+.git
+.venv
+build
+dist
+data
+models
+packaging/generated
+packaging/stage
+__pycache__
+*.pyc

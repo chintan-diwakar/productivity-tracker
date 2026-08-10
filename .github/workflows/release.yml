@@ -1,0 +1,140 @@
+name: Build release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        default: 0.1.0
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            python3-tk \
+            libgl1 \
+            libglib2.0-0t64 \
+            libsm6 \
+            libxext6 \
+            libxrender1 \
+            xauth \
+            xvfb
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip ".[dev,packaging]"
+      - name: Run the tests
+        run: python -m pytest
+      - name: Build the Ubuntu package
+        run: bash packaging/build_ubuntu.sh
+      - name: Make sure that the Ubuntu package starts
+        run: |
+          (cd dist && sha256sum -c desk-focus-tracker_*.deb.sha256)
+          sudo apt-get install --yes ./dist/desk-focus-tracker_*.deb
+          set +e
+          xvfb-run -a timeout 5 /usr/bin/desk-focus-tracker
+          app_status=$?
+          set -e
+          test "$app_status" -eq 124
+          test -f "$HOME/.config/desk-focus-tracker/configuration.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-package
+          path: |
+            dist/*.deb
+            dist/*.deb.sha256
+
+  macos:
+    runs-on: macos-15
+    env:
+      MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip ".[dev,packaging]"
+      - name: Run the tests
+        run: python -m pytest
+      - name: Require signing credentials for a tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          test -n "$MACOS_CERTIFICATE_BASE64"
+          test -n "$MACOS_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_CODESIGN_IDENTITY"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_TEAM_ID"
+          test -n "$APPLE_APP_PASSWORD"
+      - name: Install the Apple signing certificate
+        if: env.MACOS_CERTIFICATE_BASE64 != ''
+        run: |
+          certificate_path="$RUNNER_TEMP/desk-focus-certificate.p12"
+          keychain_path="$RUNNER_TEMP/desk-focus-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          echo -n "$MACOS_CERTIFICATE_BASE64" | base64 --decode -o "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security list-keychain -d user -s "$keychain_path"
+      - name: Build the macOS package
+        run: bash packaging/build_macos.sh
+      - name: Make sure that the macOS checksum matches
+        run: (cd dist && shasum -a 256 -c DeskFocusTracker-*.dmg.sha256)
+      - name: Remove the temporary signing keychain
+        if: always() && env.MACOS_CERTIFICATE_BASE64 != ''
+        run: security delete-keychain "$RUNNER_TEMP/desk-focus-signing.keychain-db"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-package
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ubuntu, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-package"
+          merge-multiple: true
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --prerelease
