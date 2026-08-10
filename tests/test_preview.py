@@ -8,6 +8,8 @@ from desk_focus_tracker.domain import DetectionResult, Status
 from desk_focus_tracker.preview import (
     InferenceWorker,
     PreviewPerformance,
+    _destroy_window_safely,
+    _window_is_visible,
     evidence_lines,
     pixel_box,
 )
@@ -62,6 +64,27 @@ class PixelBoxTest(unittest.TestCase):
         result = pixel_box(box, width=320, height=240)
 
         self.assertEqual(result, (0, 60, 320, 180))
+
+
+class ClosedWindowCV2:
+    class error(Exception):
+        pass
+
+    WND_PROP_VISIBLE = 1
+
+    def getWindowProperty(self, window_name: str, property_id: int) -> float:
+        raise self.error("NULL guiReceiver")
+
+    def destroyWindow(self, window_name: str) -> None:
+        raise self.error("NULL guiReceiver")
+
+
+class WindowCleanupTest(unittest.TestCase):
+    def test_closed_window_is_not_visible_when_opencv_raises(self) -> None:
+        self.assertFalse(_window_is_visible(ClosedWindowCV2(), "preview"))
+
+    def test_destroying_an_already_closed_window_does_not_raise(self) -> None:
+        _destroy_window_safely(ClosedWindowCV2(), "preview")
 
 
 class FakeDetector:

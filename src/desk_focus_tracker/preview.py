@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import ModuleType
@@ -270,6 +271,21 @@ def resize_for_inference(frame: Any, config: AppConfig, cv2: ModuleType) -> Any:
     return cv2.resize(frame, target_size, interpolation=cv2.INTER_AREA)
 
 
+def _window_is_visible(cv2: ModuleType, window_name: str) -> bool:
+    try:
+        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) >= 1
+    except cv2.error:
+        # Some OpenCV backends remove the GUI receiver as soon as the user closes
+        # the window. In that state, asking for its properties raises an error.
+        return False
+
+
+def _destroy_window_safely(cv2: ModuleType, window_name: str) -> None:
+    # The window may already have been destroyed by the desktop environment.
+    with suppress(cv2.error):
+        cv2.destroyWindow(window_name)
+
+
 def _draw_box(
     frame: Any,
     box: NormalizedBox,
@@ -420,7 +436,7 @@ def run_preview(
             key = cv2.waitKey(wait_ms) & 0xFF
             if key in {27, ord("q"), ord("Q")}:
                 break
-            if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+            if not _window_is_visible(cv2, window_name):
                 break
     except KeyboardInterrupt:
         print("Preview stopped.", flush=True)
@@ -433,5 +449,5 @@ def run_preview(
         if camera_opened:
             camera.close()
         if window_opened:
-            cv2.destroyWindow(window_name)
+            _destroy_window_safely(cv2, window_name)
     return 0
