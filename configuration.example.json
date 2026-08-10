@@ -1,0 +1,16 @@
+{
+  "camera_index": 0,
+  "capture_fps": 1.0,
+  "away_capture_fps": 0.2,
+  "frame_width": 320,
+  "frame_height": 240,
+  "idle_timeout_seconds": 300,
+  "away_timeout_seconds": 30,
+  "window_samples": 5,
+  "minimum_matching_samples": 3,
+  "retention_days": 30,
+  "data_dir": "data",
+  "detector_backend": "opencv_face",
+  "configuration_version": 1
+}
+
