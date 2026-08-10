@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from types import ModuleType
 from typing import Any
 
@@ -22,13 +23,32 @@ def import_cv2() -> ModuleType:
     return cv2
 
 
+@dataclass(frozen=True, slots=True)
+class CameraProperties:
+    width: int
+    height: int
+    fps: float
+
+
 class OpenCVCamera:
     """Capture one frame at a time without an application frame queue."""
 
-    def __init__(self, camera_index: int, frame_width: int, frame_height: int) -> None:
+    def __init__(
+        self,
+        camera_index: int,
+        frame_width: int,
+        frame_height: int,
+        *,
+        capture_fps: float | None = None,
+        prefer_mjpeg: bool = False,
+    ) -> None:
+        if capture_fps is not None and capture_fps <= 0.0:
+            raise ValueError("capture_fps must be positive")
         self._camera_index = camera_index
         self._frame_width = frame_width
         self._frame_height = frame_height
+        self._capture_fps = capture_fps
+        self._prefer_mjpeg = prefer_mjpeg
         self._cv2: ModuleType | None = None
         self._capture: Any = None
 
@@ -42,8 +62,12 @@ class OpenCVCamera:
             capture.release()
             raise CameraError(f"cannot open camera index {self._camera_index}")
 
+        if self._prefer_mjpeg:
+            capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, self._frame_width)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._frame_height)
+        if self._capture_fps is not None:
+            capture.set(cv2.CAP_PROP_FPS, self._capture_fps)
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._cv2 = cv2
         self._capture = capture
@@ -62,6 +86,15 @@ class OpenCVCamera:
             target_size = (max(1, round(width * scale)), max(1, round(height * scale)))
             frame = self._cv2.resize(frame, target_size, interpolation=self._cv2.INTER_AREA)
         return frame
+
+    def properties(self) -> CameraProperties:
+        if self._capture is None or self._cv2 is None:
+            raise CameraError("camera is not open")
+        return CameraProperties(
+            width=round(self._capture.get(self._cv2.CAP_PROP_FRAME_WIDTH)),
+            height=round(self._capture.get(self._cv2.CAP_PROP_FRAME_HEIGHT)),
+            fps=float(self._capture.get(self._cv2.CAP_PROP_FPS)),
+        )
 
     def close(self) -> None:
         if self._capture is not None:

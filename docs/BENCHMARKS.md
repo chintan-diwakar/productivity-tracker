@@ -24,6 +24,20 @@ The benchmark did not activate the webcam.
 
 The prototype meets the `1 FPS` speed goal. It does not meet the `150 MB` memory goal.
 
+## Live preview measurement
+
+The high-quality preview requests `1280x720` at `60 FPS`. A background thread runs inference at `10 FPS`.
+
+| Measurement | Result |
+| --- | ---: |
+| Camera driver report | `60 FPS` |
+| Measured display rate | About `30 FPS` |
+| Typical inference time | `48-56 ms` |
+
+The reference EMEET SmartCam Nova 4K delivered about `30 FPS` at both `720p` and `1080p`.
+
+Manual exposure values did not increase the capture rate. A camera with a real `60 FPS` mode is necessary for 60 unique frames each second.
+
 ## Memory isolation
 
 | Loaded components | Peak resident memory |

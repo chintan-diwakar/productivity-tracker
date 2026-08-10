@@ -89,12 +89,22 @@ Show the live diagnostic window:
 .venv/bin/desk-focus preview --config configuration.json
 ```
 
+The preview requests `1280x720` at `60 FPS`. It runs inference on smaller frames in a background thread.
+
+The side panel shows the measured display rate and inference latency. The camera can supply a lower rate than the requested rate.
+
 The preview does not save frames or write session logs. Press `Q` or `Esc` to close it.
 
 Use a lower threshold for a phone-detection experiment:
 
 ```bash
 .venv/bin/desk-focus preview --config configuration.json --score-threshold 0.15
+```
+
+Set different preview and inference rates:
+
+```bash
+.venv/bin/desk-focus preview --display-fps 60 --inference-fps 10
 ```
 
 ## Data

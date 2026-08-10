@@ -67,6 +67,30 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help="override the object detection score threshold",
     )
+    preview_parser.add_argument(
+        "--width",
+        type=int,
+        default=1280,
+        help="requested preview width (default: 1280)",
+    )
+    preview_parser.add_argument(
+        "--height",
+        type=int,
+        default=720,
+        help="requested preview height (default: 720)",
+    )
+    preview_parser.add_argument(
+        "--display-fps",
+        type=float,
+        default=60.0,
+        help="requested display rate (default: 60)",
+    )
+    preview_parser.add_argument(
+        "--inference-fps",
+        type=float,
+        default=10.0,
+        help="background inference rate (default: 10)",
+    )
     return parser
 
 
@@ -153,6 +177,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.config,
                 arguments.duration,
                 arguments.score_threshold,
+                arguments.width,
+                arguments.height,
+                arguments.display_fps,
+                arguments.inference_fps,
             )
         parser.error(f"unsupported command: {arguments.command}")
     except (

@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import unittest
 
+from desk_focus_tracker.camera import CameraProperties
 from desk_focus_tracker.config import AppConfig
 from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.preview import evidence_lines, pixel_box
+from desk_focus_tracker.preview import (
+    InferenceWorker,
+    PreviewPerformance,
+    evidence_lines,
+    pixel_box,
+)
 from desk_focus_tracker.vision import NormalizedBox, Point, VisionEvidence
 
 
@@ -56,6 +62,56 @@ class PixelBoxTest(unittest.TestCase):
         result = pixel_box(box, width=320, height=240)
 
         self.assertEqual(result, (0, 60, 320, 180))
+
+
+class FakeDetector:
+    def analyze(self, frame: object) -> VisionEvidence:
+        return VisionEvidence(
+            person_count=int(frame),
+            person_confidence=0.8,
+            phone_boxes=(),
+            phone_confidence=0.0,
+            face_count=1,
+            hand_points=(),
+            head_pitch_degrees=0.0,
+        )
+
+    def classify(self, evidence: VisionEvidence) -> DetectionResult:
+        return DetectionResult(Status.FOCUSED_SCREEN, 0.65, "fake_result")
+
+
+class InferenceWorkerTest(unittest.TestCase):
+    def test_processes_only_the_latest_pending_frame(self) -> None:
+        worker = InferenceWorker(FakeDetector())
+        worker.submit(1)
+        worker.submit(2)
+        worker.start()
+        try:
+            snapshot = worker.wait_for_snapshot(timeout=1.0)
+        finally:
+            worker.stop()
+
+        self.assertIsNotNone(snapshot)
+        assert snapshot is not None
+        self.assertEqual(snapshot.evidence.person_count, 2)
+        self.assertEqual(snapshot.sequence, 1)
+
+    def test_adds_camera_and_rate_metrics(self) -> None:
+        evidence = FakeDetector().analyze(1)
+        result = FakeDetector().classify(evidence)
+        performance = PreviewPerformance(
+            camera=CameraProperties(1280, 720, 60.0),
+            target_display_fps=60.0,
+            measured_display_fps=58.5,
+            target_inference_fps=10.0,
+            inference_latency_ms=46.2,
+        )
+
+        lines = evidence_lines(evidence, result, AppConfig(), performance)
+
+        self.assertIn("CAMERA: 1280x720 (driver 60.0 FPS)", lines)
+        self.assertIn("DISPLAY: 58.5 / 60.0 FPS", lines)
+        self.assertIn("INFERENCE: 46.2 ms / 10.0 FPS target", lines)
 
 
 if __name__ == "__main__":
