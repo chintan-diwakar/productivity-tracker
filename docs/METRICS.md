@@ -40,7 +40,7 @@ The provisional stable-release target is at least `90%` precision. The data set 
 
 The evaluation must also report recall, false-positive rate, uncertain rate, support, and a confusion matrix.
 
-Version `0.1.0` has no real-world baseline. It remains a pre-release until a representative labeled set exists.
+Version `1.0.0` has no real-world baseline for phone-use precision. An accuracy claim needs a representative labeled set.
 
 ## Evaluation file
 

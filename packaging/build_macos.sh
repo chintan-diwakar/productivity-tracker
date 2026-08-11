@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-release_version="${RELEASE_VERSION:-0.1.0}"
+release_version="${RELEASE_VERSION:-1.0.0}"
 release_version="${release_version#v}"
 export RELEASE_VERSION="$release_version"
 architecture="$(uname -m)"

@@ -46,7 +46,7 @@ Download the package and its checksum from the GitHub release.
 On Ubuntu, install the `.deb` file:
 
 ```bash
-sudo apt install ./know-your-focus_0.1.0_amd64.deb
+sudo apt install ./know-your-focus_1.0.0_amd64.deb
 ```
 
 Open **Know Your Focus** from the application menu.
@@ -249,7 +249,7 @@ See [docs/METRICS.md](docs/METRICS.md) for metric definitions and evaluation inp
 - The application does not have a tray icon or a menu-bar icon yet.
 - The macOS package supports Apple Silicon only.
 
-Version `0.1.0` is a pre-release for personal testing. Do not describe its classifications as measured accuracy.
+Version `1.0.0` is the first release. Do not describe its classifications as measured accuracy, because there is no real-world baseline yet.
 
 ## Privacy
 
