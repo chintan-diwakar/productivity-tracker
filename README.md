@@ -9,19 +9,25 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 ## Current features
 
 - The application captures one low-resolution frame each second.
-- The application keeps no frame queue and stores no camera images.
+- The application keeps no frame queue and stores no camera images by default.
 - EfficientDet-Lite0 INT8 detects people and mobile phones.
 - Face Landmarker estimates head pitch.
 - Hand Landmarker associates a phone with a nearby hand.
-- The classifier requires phone, hand, and downward-head evidence for phone use.
+- The classifier requires a phone near at least one detected hand.
+- Head direction changes the confidence and reason. It does not block hand-held phone detection.
 - A diagnostic window shows the frame, detector boxes, hand points, and missing evidence.
 - An away policy delays `AWAY` classification.
 - A rolling window prevents one-frame status changes.
 - System idle detection stops camera work during user inactivity.
 - Start, pause, timed pause, calibration, and preview controls are available in a small desktop window.
+- The Ubuntu window uses GTK 4 and Libadwaita through the Rust `gtk4-rs` bindings.
+- Platform interfaces use one local JSON protocol and one shared Python tracking engine.
 - The application shows focused active time and classified coverage.
 - JSON Lines files store status transitions.
 - JSON files store daily summaries.
+- Each tracking session has a unique identifier and a JSON summary.
+- The interface shows detailed KPI values for the current session.
+- An optional toggle saves annotated inference frames for model analysis.
 - Local midnight splits durations between the correct daily files.
 - A process lock prevents two trackers from writing to one data directory.
 - Local history has a retention limit and a confirmed deletion action.
@@ -55,7 +61,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for package build and release instruc
 
 ## Development setup
 
-Python 3.10 or a later version is required.
+Python 3.10 or a later version is required. Rust 1.92 is required for the desktop interface.
+
+On Ubuntu 24.04, install the desktop build libraries:
+
+```bash
+sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
+```
+
+On macOS, install the desktop build libraries:
+
+```bash
+brew install gtk4 libadwaita
+```
+
+Install the Rust toolchain:
+
+```bash
+rustup toolchain install 1.92.0
+```
 
 1. Create a virtual environment.
 
@@ -81,13 +105,27 @@ Python 3.10 or a later version is required.
    .venv/bin/desk-focus init-config --path configuration.json
    ```
 
-5. Start the tracker.
+5. Build the GTK desktop interface.
 
    ```bash
-   .venv/bin/desk-focus run --config configuration.json
+   cargo build --manifest-path desktop/Cargo.toml
    ```
 
-6. Press `Ctrl+C` to stop the tracker.
+6. Start the desktop application.
+
+   ```bash
+   .venv/bin/desk-focus app --config configuration.json
+   ```
+
+The Rust process shows the interface. A private JSON Lines connection links it to the Python tracking engine.
+
+To start only the tracking engine, run this command:
+
+```bash
+.venv/bin/desk-focus run --config configuration.json
+```
+
+Press `Ctrl+C` to stop the tracking engine.
 
 Use a short run to make sure that the camera works:
 
@@ -107,6 +145,13 @@ Run the installed development test suite:
 
 ```bash
 .venv/bin/pytest
+```
+
+Make sure that the Rust frontend passes its checks:
+
+```bash
+cargo fmt --manifest-path desktop/Cargo.toml --check
+cargo clippy --locked --manifest-path desktop/Cargo.toml -- -D warnings
 ```
 
 Measure model speed and peak memory without a camera:
@@ -131,7 +176,7 @@ The zoom setting cannot increase the physical field of view of the camera lens.
 
 The preview does not save frames or write session logs. Press `Q` or `Esc` to close it.
 
-Use a lower threshold for a phone-detection experiment:
+Override the phone threshold for a detection experiment:
 
 ```bash
 .venv/bin/desk-focus preview --config configuration.json --score-threshold 0.15
@@ -158,9 +203,18 @@ The application writes these files:
 ```text
 events-YYYY-MM-DD.jsonl
 summary-YYYY-MM-DD.json
+sessions/
+  SESSION_ID/
+    summary.json
 ```
 
 The event file stores state changes and durations. The summary file contains totals that the application rebuilds from valid event records.
+
+Each session summary contains all status durations, KPI values, versions, and final classification details.
+
+Diagnostic output is disabled by default. Enable **Save diagnostic output** before a session to save sampled images and an evidence manifest.
+
+Diagnostic images can show the user and the room. The application stores these images locally and limits each session to `3600` images.
 
 ## Models
 
@@ -198,7 +252,8 @@ Version `0.1.0` is a pre-release for personal testing. Do not describe its class
 ## Privacy
 
 - The application does not send frames to a server.
-- The application does not save raw frames.
+- The application does not save camera images by default.
+- The application saves sampled diagnostic images only after explicit consent.
 - The application does not use identity recognition.
 - The application does not download models during tracking.
 - The application shows errors instead of inventing a productivity label.

@@ -10,6 +10,8 @@ The application gives private feedback to the person who runs it. It is not an e
 
 The application estimates visible behavior, not actual productivity. Looking down can also mean reading, writing, or using another device.
 
+`POSSIBLE_PHONE_USE` means that the detector sees a phone near at least one hand. It does not prove visual attention.
+
 ## 2. Product principles
 
 - Process all camera frames on the local computer.
@@ -28,7 +30,7 @@ The detector records a detailed status. The statistics layer maps that status to
 | Status code | Meaning | Default statistics label |
 | --- | --- | --- |
 | `FOCUSED_SCREEN` | One person faces the configured screen area. | Productive |
-| `POSSIBLE_PHONE_USE` | A phone is near a hand and the head points toward it. | Unproductive |
+| `POSSIBLE_PHONE_USE` | A phone is near at least one detected hand. | Unproductive |
 | `LOOKING_DOWN` | The head points down, but phone evidence is weak or absent. | Uncertain |
 | `LOOKING_AWAY` | The person looks outside the configured screen area. | Uncertain |
 | `AWAY` | No person is present for the configured away period. | Excluded |
@@ -67,7 +69,8 @@ The first version must not classify every downward head movement as phone use. T
 - Estimate head direction relative to the calibrated screen direction.
 - Detect a mobile phone with a lightweight object model.
 - Detect hands or use pose landmarks when the selected model supports them.
-- Combine phone, hand, and head signals into one result.
+- Require one phone-hand association for possible phone use.
+- Use head direction as supporting evidence and a confidence signal.
 - Return a confidence value and reason code for each result.
 - Return `UNCERTAIN` when the required visual evidence is missing.
 
@@ -112,17 +115,39 @@ productive_time / (productive_time + unproductive_time)
 
 The interface must also show excluded and uncertain time. This information prevents a misleading percentage.
 
-### 4.7 Tray or menu-bar interface
+### 4.6.1 Tracking sessions
 
-- Show a small status icon.
+- Start a session when the user selects `Start / Resume` without an open session.
+- Keep the same session during a manual or timed pause.
+- End the session when the user selects `End session` or quits the application.
+- End the session before a camera preview, calibration, or camera change.
+- Give each session a unique identifier.
+- Reset all session counters when a new session starts.
+- Keep daily counters separate from session counters.
+- Show every detailed status duration for the current session.
+- Store the start time, end time, model version, configuration version, and final status.
+- Store the focus ratio, coverage, status durations, and category durations.
+- Keep status transitions in the event log with the session identifier.
+- Write one atomic JSON summary for each session.
+
+### 4.7 Desktop interface
+
+- Keep camera inference and session storage in the Python engine process.
+- Use a local JSON Lines connection between the interface and the engine.
+- Keep all classification rules and metrics out of the platform interfaces.
+- Use GTK 4, Libadwaita, and Rust `gtk4-rs` for Ubuntu.
+- Use SwiftUI and AppKit for macOS.
+- Use WinUI for a later Windows release.
 - Show today’s productive and unproductive time.
 - Provide `Start`, `Pause`, `Pause for 15 minutes`, and `Quit` actions.
 - Provide an action to open the data folder.
 - Provide an action to delete local history.
 - Show camera and model errors without repeated notifications.
-- Keep the interface usable when tray support is unavailable.
+- Use an adaptive, scrollable layout for small displays.
+- Follow the GNOME interface guidelines on Ubuntu.
+- Follow the Apple interface guidelines on macOS.
 
-Tkinter can provide a small fallback window. Rumps can support macOS, and AppIndicator can support compatible Linux desktops.
+A tray or menu-bar interface is not part of the first alpha release.
 
 ### 4.8 Local data storage
 
@@ -141,7 +166,12 @@ Recommended file layout:
 data/
   events-2026-08-10.jsonl
   summary-2026-08-10.json
-  configuration.json
+  sessions/
+    7cb3d89a.../
+      summary.json
+      diagnostics/
+        manifest.jsonl
+        000001-POSSIBLE_PHONE_USE.jpg
 ```
 
 Example event:
@@ -153,7 +183,7 @@ Example event:
   "confidence": 0.87,
   "reason": "phone_near_hand_and_downward_head_pose",
   "model_version": "phone-detector-1",
-  "configuration_version": 1
+  "configuration_version": 2
 }
 ```
 
@@ -167,6 +197,20 @@ Example event:
 - Store logs with permissions that restrict access to the current user.
 - Require explicit consent before diagnostic frame storage.
 - Keep diagnostic frame storage disabled by default.
+
+### 4.9.1 Diagnostic output
+
+- Provide a `Save diagnostic output` toggle in the interface.
+- Explain that diagnostic images can show the user and the room.
+- Apply a toggle change to the next session.
+- Save only sampled inference frames when the toggle is enabled.
+- Do not save continuous preview video.
+- Save each frame at the inference resolution.
+- Add the status, confidence, and reason to each saved image.
+- Write a JSON Lines manifest with the evidence for each image.
+- Store diagnostic output inside its session folder.
+- Limit diagnostic storage to `3600` frames for each session.
+- Delete diagnostic output when the user deletes local history.
 
 ## 5. Later features
 
@@ -243,12 +287,15 @@ The first version can expose these values in `configuration.json`:
 | `frame_width` | `320` | Working frame width |
 | `frame_height` | `240` | Working frame height |
 | `idle_timeout_seconds` | `300` | System idle threshold |
-| `away_timeout_seconds` | `30` | No-person threshold |
+| `away_timeout_seconds` | `5` | Continuous no-person threshold |
 | `window_samples` | `5` | Temporal classification window |
 | `minimum_matching_samples` | `3` | Stable result threshold |
 | `daily_reset_time` | `00:00` | Local daily boundary |
 | `retention_days` | `30` | Local log retention |
 | `save_diagnostic_frames` | `false` | Diagnostic image storage |
+| `diagnostic_frame_limit` | `3600` | Maximum diagnostic images in one session |
+| `object_score_threshold` | `0.15` | Phone detection threshold |
+| `person_score_threshold` | `0.35` | Person detection threshold |
 
 Model confidence thresholds belong in the same configuration. Calibration and evaluation must determine their initial values.
 
@@ -283,8 +330,8 @@ Model confidence thresholds belong in the same configuration. Calibration and ev
 | The user drinks or eats. | Require phone evidence before `POSSIBLE_PHONE_USE`. |
 | The user reads a book or writes notes. | Record `LOOKING_DOWN`, not phone use. |
 | The user uses a tablet or e-reader. | Return an explicit device result only when the model supports it. |
-| A phone sits in a stand near the monitor. | Require a hand or downward-attention signal before phone-use classification. |
-| The user holds a phone during a video call. | Apply the same visible-behavior rule. Do not infer intent. |
+| A phone sits in a stand near the monitor. | Require the phone to be near at least one detected hand. |
+| The user holds a phone during a video call. | Record possible phone use. Do not infer attention or intent. |
 | The user looks at the keyboard. | Ignore short downward movements through temporal smoothing. |
 | The user closes their eyes or stretches. | Ignore short events and return `UNCERTAIN` for weak landmarks. |
 | The user has nonstandard movement or posture. | Support calibration and manual policy changes. |
@@ -294,7 +341,7 @@ Model confidence thresholds belong in the same configuration. Calibration and ev
 | Edge case | Required behavior |
 | --- | --- |
 | The phone is partly hidden. | Use the combined confidence and return `UNCERTAIN` when evidence is weak. |
-| A remote control resembles a phone. | Require hand, device, and head agreement before phone use. |
+| A remote control resembles a phone. | Require a phone detection near at least one hand. Keep the result as possible phone use. |
 | A phone appears on another screen. | Use object location and person association to reject it. |
 | Detection changes every frame. | Keep the stable status until the temporal threshold is met. |
 | The model file is absent or corrupt. | Stop inference and show a model error. |
@@ -321,6 +368,9 @@ The project must publish evaluation methods before it describes the detector as 
 | The system clock moves backward. | Keep durations monotonic and record the wall-clock change. |
 | The computer sleeps. | Exclude the sleep interval and resume with `UNCERTAIN`. |
 | The user pauses near midnight. | Split the paused duration across the daily boundary. |
+| The user pauses a session. | Keep the session identifier and include the paused duration. |
+| The user starts after an ended session. | Create a session identifier and reset all session counters. |
+| The application stops during a session. | Keep completed transitions and mark the session as interrupted after recovery. |
 
 ### 8.5 Storage and recovery
 
@@ -334,6 +384,8 @@ The project must publish evaluation methods before it describes the detector as 
 | The user deletes history during tracking. | Close active files, delete history, and start new files. |
 | The retention job finds an unknown file. | Leave the unknown file unchanged. |
 | A log contains an unknown status code. | Preserve the record and exclude it from statistics. |
+| Diagnostic storage reaches its frame limit. | Stop image writes and keep status logging active. |
+| A diagnostic image write fails. | Disable diagnostic output for the session and keep tracking active. |
 
 ### 8.6 Interface and platform behavior
 
@@ -357,6 +409,7 @@ The project must publish evaluation methods before it describes the detector as 
 - Store no raw frames during normal operation.
 - Recover daily totals after an unplanned restart.
 - Keep event logs below `1 MB` per normal workday by logging transitions.
+- Keep diagnostic output disabled during normal operation.
 
 CPU use depends on the model and computer. Each supported platform needs a measured CPU budget before release.
 
@@ -383,6 +436,10 @@ The MVP is complete when all these conditions are true:
 - The detector emits every status in the defined status model.
 - Temporal smoothing prevents a one-frame status change.
 - The interface shows current status and daily totals.
+- The interface shows all KPI values for the current session.
+- A new session starts with zero session counters.
+- Each completed session has one local JSON summary.
+- The diagnostic toggle saves sampled output in the current session folder.
 - Pause, timed pause, resume, and quit work without a restart.
 - Event and summary files recover after an unplanned stop.
 - Daily rollover works across sleep and restart.
@@ -398,7 +455,7 @@ The MVP is complete when all these conditions are true:
 4. Define the policy for sustained `LOOKING_DOWN` time.
 5. Define the default retention period and data directory.
 6. Select the operating-system API for idle detection.
-7. Decide whether the first interface uses Tkinter or a native tray library.
+7. Define the tray or menu-bar design for a later release.
 8. Define the first accuracy target after a baseline evaluation.
 
 ## 13. Suggested implementation stages

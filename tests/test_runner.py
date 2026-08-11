@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,6 +49,19 @@ class FixedIdleMonitor:
         return self.seconds
 
 
+class FakeDiagnosticWriter:
+    def __init__(self) -> None:
+        self.capture_count = 0
+        self.closed = False
+
+    def capture(self, frame: object, result: DetectionResult, captured_at: object) -> bool:
+        self.capture_count += 1
+        return True
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class TrackerRunnerTest(unittest.TestCase):
     def build_runner(
         self,
@@ -56,6 +70,7 @@ class TrackerRunnerTest(unittest.TestCase):
         detector: FakeDetector,
         statuses: list[Status],
         idle_seconds: float | None = None,
+        diagnostic_writer: FakeDiagnosticWriter | None = None,
     ) -> TrackerRunner:
         config = AppConfig(
             data_dir=data_dir,
@@ -72,6 +87,7 @@ class TrackerRunnerTest(unittest.TestCase):
             logger,
             status_callback=lambda result: statuses.append(result.status),
             idle_monitor=FixedIdleMonitor(idle_seconds),
+            diagnostic_writer=diagnostic_writer,
         )
 
     def test_runs_a_camera_sample_and_closes_resources(self) -> None:
@@ -120,6 +136,30 @@ class TrackerRunnerTest(unittest.TestCase):
 
         self.assertEqual(camera.open_count, 0)
         self.assertIn(Status.PAUSED, statuses)
+
+    def test_records_saved_diagnostic_frames_in_session_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            data_dir = Path(temporary_directory)
+            camera = FakeCamera()
+            detector = FakeDetector()
+            statuses: list[Status] = []
+            diagnostic_writer = FakeDiagnosticWriter()
+            runner = self.build_runner(
+                data_dir,
+                camera,
+                detector,
+                statuses,
+                diagnostic_writer=diagnostic_writer,
+            )
+
+            runner.run(duration_seconds=0.01)
+
+            summary_path = next((data_dir / "sessions").glob("*/summary.json"))
+            summary = json.loads(summary_path.read_text())
+
+        self.assertEqual(diagnostic_writer.capture_count, 1)
+        self.assertTrue(diagnostic_writer.closed)
+        self.assertEqual(summary["diagnostic_frame_count"], 1)
 
 
 if __name__ == "__main__":

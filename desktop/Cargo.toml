@@ -1,0 +1,23 @@
+[package]
+name = "desk-focus-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+description = "GTK 4 and Libadwaita desktop frontend for Desk Focus Tracker"
+license = "MIT"
+
+[[bin]]
+name = "desk-focus-tracker"
+path = "src/main.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "=0.11.4", features = ["v4_10"] }
+adw = { package = "libadwaita", version = "=0.9.2", features = ["v1_5", "gtk_v4_10"] }
+glib = "=0.22.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

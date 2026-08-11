@@ -9,6 +9,7 @@ description = "A private, local-first desk focus tracker"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "cv2-enumerate-cameras==1.3.3",
   "mediapipe==1.0.0",
   "opencv-contrib-python==5.0.0.93",
 ]
@@ -43,9 +44,10 @@ onnx = [
 
 [project.scripts]
 desk-focus = "desk_focus_tracker.cli:main"
+desk-focus-engine = "desk_focus_tracker.engine_server:main"
 
 [project.gui-scripts]
-desk-focus-app = "desk_focus_tracker.desktop:main"
+desk-focus-app = "desk_focus_tracker.desktop_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

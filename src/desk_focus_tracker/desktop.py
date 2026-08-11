@@ -5,13 +5,15 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from desk_focus_tracker.calibration import CalibrationResult, calibrate_neutral_head
-from desk_focus_tracker.camera import OpenCVCamera
+from desk_focus_tracker.camera import CameraDevice, OpenCVCamera, enumerate_camera_devices
 from desk_focus_tracker.config import (
     AppConfig,
     default_config_path,
@@ -20,10 +22,11 @@ from desk_focus_tracker.config import (
     write_default_config,
 )
 from desk_focus_tracker.detector import create_detector
+from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
 from desk_focus_tracker.domain import DetectionResult, StatisticsCategory, Status
 from desk_focus_tracker.idle import create_idle_monitor
 from desk_focus_tracker.instance_lock import InstanceLock, data_directory_lock
-from desk_focus_tracker.metrics import DailyMetrics, format_duration, format_ratio
+from desk_focus_tracker.metrics import DailyMetrics, SessionMetrics, format_duration, format_ratio
 from desk_focus_tracker.models import ModelStore
 from desk_focus_tracker.preview import run_preview
 from desk_focus_tracker.runner import TrackerRunner
@@ -34,12 +37,16 @@ class DesktopDependencyError(RuntimeError):
     """Raised when the desktop UI dependency is not installed."""
 
 
+class DesktopBusyError(RuntimeError):
+    """Raised when two operations try to use the camera at the same time."""
+
+
 STATUS_LABELS = {
     Status.FOCUSED_SCREEN: "Focused",
     Status.POSSIBLE_PHONE_USE: "Possible phone use",
     Status.LOOKING_DOWN: "Looking down · uncertain",
-    Status.LOOKING_AWAY: "Looking away · uncertain",
-    Status.AWAY: "Away",
+    Status.LOOKING_AWAY: "Looking away · person visible",
+    Status.AWAY: "Away · no person visible",
     Status.SYSTEM_IDLE: "System idle",
     Status.UNCERTAIN: "Uncertain",
     Status.PAUSED: "Paused",
@@ -47,11 +54,21 @@ STATUS_LABELS = {
 }
 
 
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class DesktopSnapshot:
     status: Status
     status_seconds: float
     metrics: DailyMetrics
+    session_metrics: SessionMetrics | None
     last_sample: datetime | None
     running: bool
     paused: bool
@@ -75,6 +92,8 @@ class DesktopController:
         self._status_started = time.monotonic()
         self._last_sample: datetime | None = None
         self._error: str | None = None
+        self._camera_operation_lock = threading.Lock()
+        self._active_camera_operation: str | None = None
 
     @property
     def config(self) -> AppConfig:
@@ -88,6 +107,9 @@ class DesktopController:
             return False
         return True
 
+    def available_cameras(self) -> tuple[CameraDevice, ...]:
+        return enumerate_camera_devices()
+
     def download_models(self) -> tuple[Path, ...]:
         paths = tuple(ModelStore(self.config.model_dir).download_all())
         with self._lock:
@@ -95,7 +117,7 @@ class DesktopController:
         return paths
 
     def start(self) -> None:
-        with self._lock:
+        with self._camera_operation("starting tracking"), self._lock:
             if self._thread is not None and self._thread.is_alive():
                 assert self._runner is not None
                 self._runner.resume()
@@ -116,6 +138,16 @@ class DesktopController:
                     config.data_dir,
                     model_version=detector.model_version,
                     configuration_version=config.configuration_version,
+                    diagnostic_output_enabled=config.save_diagnostic_frames,
+                )
+                logger.recover_interrupted_sessions()
+                diagnostic_writer = (
+                    DiagnosticFrameWriter(
+                        logger.session_directory,
+                        config.diagnostic_frame_limit,
+                    )
+                    if config.save_diagnostic_frames
+                    else None
                 )
                 runner = TrackerRunner(
                     config,
@@ -125,6 +157,8 @@ class DesktopController:
                     status_callback=self._set_status,
                     sample_callback=self._set_last_sample,
                     idle_monitor=create_idle_monitor(),
+                    diagnostic_writer=diagnostic_writer,
+                    diagnostic_error_callback=self._set_diagnostic_error,
                 )
             except Exception:
                 instance_lock.release()
@@ -134,6 +168,7 @@ class DesktopController:
             self._runner = runner
             self._instance_lock = instance_lock
             self._error = None
+            self._last_sample = None
             self._thread = threading.Thread(
                 target=self._run_tracker,
                 args=(runner,),
@@ -152,6 +187,9 @@ class DesktopController:
     def resume(self) -> None:
         self.start()
 
+    def end_session(self) -> None:
+        self.stop()
+
     def stop(self) -> None:
         with self._lock:
             runner = self._runner
@@ -166,36 +204,79 @@ class DesktopController:
     def save_camera_index(self, camera_index: int) -> None:
         if camera_index < 0:
             raise ValueError("camera_index must be zero or greater")
-        self.stop()
-        with self._lock:
-            self._config = replace(load_config(self.config_path), camera_index=camera_index)
-            write_config(self.config_path, self._config)
+        with self._camera_operation("saving camera settings"):
+            config = load_config(self.config_path)
+            if config.camera_index == camera_index:
+                with self._lock:
+                    self._config = config
+                return
+            self.stop()
+            with self._lock:
+                self._config = replace(config, camera_index=camera_index)
+                write_config(self.config_path, self._config)
 
     def calibrate(self) -> CalibrationResult:
-        self.stop()
-        config = load_config(self.config_path)
-        result = calibrate_neutral_head(config)
-        write_config(self.config_path, result.config)
-        with self._lock:
-            self._config = result.config
-            self._error = None
-        return result
+        with self._camera_operation("calibration"):
+            self.stop()
+            with self._lock:
+                self._error = None
+            config = load_config(self.config_path)
+            result = calibrate_neutral_head(config)
+            write_config(self.config_path, result.config)
+            with self._lock:
+                self._config = result.config
+            return result
 
     def preview(self) -> None:
-        self.stop()
-        run_preview(
-            self.config_path,
-            duration_seconds=None,
-            score_threshold=None,
-            preview_width=1280,
-            preview_height=720,
-            display_fps=60.0,
-            inference_fps=10.0,
-            zoom=0.0,
-        )
+        with self._camera_operation("camera preview"):
+            self.stop()
+            with self._lock:
+                self._error = None
+            run_preview(
+                self.config_path,
+                duration_seconds=None,
+                score_threshold=None,
+                preview_width=1280,
+                preview_height=720,
+                display_fps=60.0,
+                inference_fps=10.0,
+                zoom=0.0,
+            )
 
     def open_data_folder(self) -> None:
-        path = self.config.data_dir
+        self._open_folder(self.config.data_dir)
+
+    def open_session_folder(self) -> None:
+        with self._lock:
+            logger = self._logger
+            path = (
+                logger.session_directory
+                if logger is not None and logger.session_started
+                else self._config.data_dir / "sessions"
+            )
+        self._open_folder(path)
+
+    def session_summaries(self) -> tuple[dict[str, Any], ...]:
+        with self._lock:
+            logger = self._logger or JsonlSessionLogger(
+                self._config.data_dir,
+                model_version="desktop",
+                configuration_version=self._config.configuration_version,
+            )
+            return logger.list_session_summaries()
+
+    def save_diagnostic_setting(self, enabled: bool) -> None:
+        if not isinstance(enabled, bool):
+            raise ValueError("diagnostic setting must be true or false")
+        with self._lock:
+            self._config = replace(
+                load_config(self.config_path),
+                save_diagnostic_frames=enabled,
+            )
+            write_config(self.config_path, self._config)
+
+    @staticmethod
+    def _open_folder(path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
         if sys.platform == "darwin":
             command = ("open", str(path))
@@ -226,11 +307,13 @@ class DesktopController:
                     configuration_version=self._config.configuration_version,
                 )
             metrics = logger.snapshot(now.date(), now, time.monotonic())
+            session_metrics = logger.session_snapshot(now, time.monotonic())
             running = self._thread is not None and self._thread.is_alive()
             return DesktopSnapshot(
                 status=self._status,
                 status_seconds=max(0.0, time.monotonic() - self._status_started),
                 metrics=metrics,
+                session_metrics=session_metrics,
                 last_sample=self._last_sample,
                 running=running,
                 paused=self._runner.paused if running and self._runner is not None else True,
@@ -261,6 +344,24 @@ class DesktopController:
         with self._lock:
             self._last_sample = sampled_at
 
+    def _set_diagnostic_error(self, message: str) -> None:
+        with self._lock:
+            self._error = f"Diagnostic output stopped: {message}. Tracking continues."
+
+    @contextmanager
+    def _camera_operation(self, name: str) -> Iterator[None]:
+        if not self._camera_operation_lock.acquire(blocking=False):
+            active = self._active_camera_operation or "another camera operation"
+            raise DesktopBusyError(
+                f"Cannot start {name} while {active} is active. Close it and try again."
+            )
+        self._active_camera_operation = name
+        try:
+            yield
+        finally:
+            self._active_camera_operation = None
+            self._camera_operation_lock.release()
+
 
 class DeskFocusWindow:
     def __init__(self, controller: DesktopController, tk: Any, ttk: Any, messagebox: Any) -> None:
@@ -269,22 +370,34 @@ class DeskFocusWindow:
         self.ttk = ttk
         self.messagebox = messagebox
         self.actions: queue.SimpleQueue[tuple[str, object]] = queue.SimpleQueue()
+        self._action_in_progress = False
+        self._action_buttons: list[Any] = []
         self.root = tk.Tk()
         self.root.title("Desk Focus Tracker")
-        self.root.geometry("520x650")
-        self.root.minsize(480, 620)
+        self.root.geometry("560x850")
+        self.root.minsize(520, 760)
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
         self.status_value = tk.StringVar(value="Paused")
         self.status_duration = tk.StringVar(value="0s")
+        self.session_value = tk.StringVar(value="No session")
         self.ratio_value = tk.StringVar(value="Not enough data")
         self.coverage_value = tk.StringVar(value="Not enough data")
         self.focused_value = tk.StringVar(value="0s")
         self.phone_value = tk.StringVar(value="0s")
+        self.looking_down_value = tk.StringVar(value="0s")
+        self.looking_away_value = tk.StringVar(value="0s")
+        self.away_value = tk.StringVar(value="0s")
         self.uncertain_value = tk.StringVar(value="0s")
-        self.excluded_value = tk.StringVar(value="0s")
+        self.idle_value = tk.StringVar(value="0s")
+        self.paused_value = tk.StringVar(value="0s")
+        self.camera_error_value = tk.StringVar(value="0s")
+        self.today_value = tk.StringVar(value="Today: no classified time")
         self.last_sample_value = tk.StringVar(value="No successful sample")
         self.message_value = tk.StringVar(value="Tracking starts only when you select Start.")
+        self.privacy_value = tk.StringVar(value="Normal tracking does not save images or audio.")
         self.camera_index_value = tk.StringVar(value=str(controller.config.camera_index))
+        self.diagnostic_value = tk.BooleanVar(value=controller.config.save_diagnostic_frames)
+        self._update_privacy_text()
         self._build()
         self.root.after(200, self._refresh)
 
@@ -306,30 +419,43 @@ class DeskFocusWindow:
             row=2, column=0, columnspan=2, sticky="w", pady=(0, 20)
         )
 
-        self._metric(frame, 3, "Focused active time", self.ratio_value)
-        self._metric(frame, 4, "Classified coverage", self.coverage_value)
-        self._metric(frame, 5, "Focused", self.focused_value)
-        self._metric(frame, 6, "Possible phone use", self.phone_value)
-        self._metric(frame, 7, "Uncertain", self.uncertain_value)
-        self._metric(frame, 8, "Away and excluded", self.excluded_value)
+        self.ttk.Label(
+            frame,
+            textvariable=self.session_value,
+            font=("TkDefaultFont", 11, "bold"),
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self._metric(frame, 4, "Session focus ratio", self.ratio_value)
+        self._metric(frame, 5, "Classified coverage", self.coverage_value)
+        self._metric(frame, 6, "Focused", self.focused_value)
+        self._metric(frame, 7, "Possible phone use", self.phone_value)
+        self._metric(frame, 8, "Looking down", self.looking_down_value)
+        self._metric(frame, 9, "Looking away", self.looking_away_value)
+        self._metric(frame, 10, "Away (no person)", self.away_value)
+        self._metric(frame, 11, "Uncertain", self.uncertain_value)
+        self._metric(frame, 12, "System idle", self.idle_value)
+        self._metric(frame, 13, "Paused", self.paused_value)
+        self._metric(frame, 14, "Camera error", self.camera_error_value)
 
-        self.ttk.Separator(frame).grid(row=9, column=0, columnspan=2, sticky="ew", pady=18)
+        self.ttk.Separator(frame).grid(row=15, column=0, columnspan=2, sticky="ew", pady=18)
         controls = self.ttk.Frame(frame)
-        controls.grid(row=10, column=0, columnspan=2, sticky="ew")
-        for column in range(3):
+        controls.grid(row=16, column=0, columnspan=2, sticky="ew")
+        for column in range(4):
             controls.columnconfigure(column, weight=1)
-        self.ttk.Button(controls, text="Start / Resume", command=self._start).grid(
-            row=0, column=0, sticky="ew", padx=(0, 5)
-        )
+        start_button = self.ttk.Button(controls, text="Start / Resume", command=self._start)
+        start_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self._action_buttons.append(start_button)
         self.ttk.Button(controls, text="Pause", command=self.controller.pause).grid(
-            row=0, column=1, sticky="ew", padx=5
+            row=0, column=1, sticky="ew", padx=4
         )
         self.ttk.Button(
             controls, text="Pause 15 min", command=lambda: self.controller.pause(900)
-        ).grid(row=0, column=2, sticky="ew", padx=(5, 0))
+        ).grid(row=0, column=2, sticky="ew", padx=4)
+        end_button = self.ttk.Button(controls, text="End session", command=self._end_session)
+        end_button.grid(row=0, column=3, sticky="ew", padx=(4, 0))
+        self._action_buttons.append(end_button)
 
         setup = self.ttk.LabelFrame(frame, text="Camera setup", padding=12)
-        setup.grid(row=11, column=0, columnspan=2, sticky="ew", pady=(18, 0))
+        setup.grid(row=17, column=0, columnspan=2, sticky="ew", pady=(18, 0))
         setup.columnconfigure(1, weight=1)
         self.ttk.Label(setup, text="Camera index").grid(row=0, column=0, sticky="w")
         self.ttk.Spinbox(
@@ -339,40 +465,57 @@ class DeskFocusWindow:
             textvariable=self.camera_index_value,
             width=8,
         ).grid(row=0, column=1, sticky="w", padx=8)
-        self.ttk.Button(setup, text="Save", command=self._save_camera).grid(
-            row=0, column=2, sticky="e"
+        save_button = self.ttk.Button(setup, text="Save", command=self._save_camera)
+        save_button.grid(row=0, column=2, sticky="e")
+        download_button = self.ttk.Button(
+            setup, text="Download models", command=self._download_models
         )
-        self.ttk.Button(setup, text="Download models", command=self._download_models).grid(
-            row=1, column=0, sticky="ew", pady=(10, 0)
-        )
-        self.ttk.Button(setup, text="Camera preview", command=self._preview).grid(
-            row=1, column=1, sticky="ew", padx=8, pady=(10, 0)
-        )
-        self.ttk.Button(setup, text="Calibrate", command=self._calibrate).grid(
-            row=1, column=2, sticky="ew", pady=(10, 0)
+        download_button.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        preview_button = self.ttk.Button(setup, text="Camera preview", command=self._preview)
+        preview_button.grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
+        calibrate_button = self.ttk.Button(setup, text="Calibrate", command=self._calibrate)
+        calibrate_button.grid(row=1, column=2, sticky="ew", pady=(10, 0))
+        self._action_buttons.extend(
+            (save_button, download_button, preview_button, calibrate_button)
         )
 
         privacy = self.ttk.LabelFrame(frame, text="Privacy", padding=12)
-        privacy.grid(row=12, column=0, columnspan=2, sticky="ew", pady=(18, 0))
-        privacy.columnconfigure(0, weight=1)
-        privacy.columnconfigure(1, weight=1)
+        privacy.grid(row=18, column=0, columnspan=2, sticky="ew", pady=(18, 0))
+        for column in range(3):
+            privacy.columnconfigure(column, weight=1)
         self.ttk.Label(
             privacy,
-            text="Frames stay on this computer. The application does not save images or audio.",
-            wraplength=430,
-        ).grid(row=0, column=0, columnspan=2, sticky="w")
+            textvariable=self.privacy_value,
+            wraplength=470,
+        ).grid(row=0, column=0, columnspan=3, sticky="w")
+        diagnostic_toggle = self.ttk.Checkbutton(
+            privacy,
+            text="Save diagnostic output for the next session",
+            variable=self.diagnostic_value,
+            command=self._toggle_diagnostics,
+        )
+        diagnostic_toggle.grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        self._action_buttons.append(diagnostic_toggle)
+        self.ttk.Button(
+            privacy,
+            text="Session history",
+            command=self._show_session_history,
+        ).grid(row=2, column=0, sticky="ew", padx=(0, 4), pady=(10, 0))
         self.ttk.Button(privacy, text="Open data folder", command=self._open_data).grid(
-            row=1, column=0, sticky="ew", padx=(0, 4), pady=(10, 0)
+            row=2, column=1, sticky="ew", padx=4, pady=(10, 0)
         )
         self.ttk.Button(privacy, text="Delete history", command=self._delete_history).grid(
-            row=1, column=1, sticky="ew", padx=(4, 0), pady=(10, 0)
+            row=2, column=2, sticky="ew", padx=(4, 0), pady=(10, 0)
         )
 
         self.ttk.Label(frame, textvariable=self.last_sample_value).grid(
-            row=13, column=0, columnspan=2, sticky="w", pady=(18, 0)
+            row=19, column=0, columnspan=2, sticky="w", pady=(18, 0)
+        )
+        self.ttk.Label(frame, textvariable=self.today_value).grid(
+            row=20, column=0, columnspan=2, sticky="w", pady=(4, 0)
         )
         self.ttk.Label(frame, textvariable=self.message_value, wraplength=460).grid(
-            row=14, column=0, columnspan=2, sticky="w", pady=(6, 0)
+            row=21, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
 
     def _metric(self, parent: Any, row: int, label: str, value: Any) -> None:
@@ -382,6 +525,13 @@ class DeskFocusWindow:
         )
 
     def _run_action(self, name: str, action: Any) -> None:
+        if self._action_in_progress:
+            self.message_value.set(
+                "Close the current camera window before starting another action."
+            )
+            return
+        self._action_in_progress = True
+        self._set_action_buttons_enabled(False)
         self.message_value.set(f"{name}…")
 
         def run() -> None:
@@ -401,6 +551,9 @@ class DeskFocusWindow:
     def _download_models(self) -> None:
         self._run_action("Downloading models", self.controller.download_models)
 
+    def _end_session(self) -> None:
+        self._run_action("Ending session", self.controller.end_session)
+
     def _preview(self) -> None:
         if self._save_camera():
             self._run_action("Opening preview", self.controller.preview)
@@ -415,6 +568,9 @@ class DeskFocusWindow:
         self._run_action("Calibrating", self.controller.calibrate)
 
     def _save_camera(self) -> bool:
+        if self._action_in_progress:
+            self.message_value.set("Close the current camera window before changing settings.")
+            return False
         try:
             self.controller.save_camera_index(int(self.camera_index_value.get()))
         except (TypeError, ValueError) as error:
@@ -428,10 +584,136 @@ class DeskFocusWindow:
         except Exception as error:
             self.message_value.set(f"Cannot open the data folder: {error}")
 
+    def _show_session_history(self) -> None:
+        try:
+            summaries = self.controller.session_summaries()
+        except Exception as error:
+            self.message_value.set(f"Cannot read session history: {error}")
+            return
+
+        window = self.tk.Toplevel(self.root)
+        window.title("Session history")
+        window.geometry("860x620")
+        window.minsize(700, 500)
+        window.columnconfigure(0, weight=1)
+        window.rowconfigure(0, weight=1)
+        frame = self.ttk.Frame(window, padding=16)
+        frame.grid(sticky="nsew")
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        columns = ("started", "state", "duration", "focus", "phone")
+        tree = self.ttk.Treeview(frame, columns=columns, show="headings", height=10)
+        headings = {
+            "started": "Started",
+            "state": "State",
+            "duration": "Duration",
+            "focus": "Focus ratio",
+            "phone": "Phone use",
+        }
+        widths = {"started": 180, "state": 80, "duration": 90, "focus": 90, "phone": 90}
+        for column in columns:
+            tree.heading(column, text=headings[column])
+            tree.column(column, width=widths[column], anchor="w")
+        tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar = self.ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        details = self.tk.Text(frame, height=18, wrap="word")
+        details.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(12, 0))
+        details.configure(state="disabled")
+        summaries_by_item: dict[str, dict[str, Any]] = {}
+        for summary in summaries:
+            started_at = datetime.fromisoformat(str(summary["started_at"]))
+            statuses = summary.get("status_seconds", {})
+            phone_seconds = float(statuses.get(Status.POSSIBLE_PHONE_USE.value, 0.0))
+            item = tree.insert(
+                "",
+                "end",
+                values=(
+                    started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    str(summary.get("state", "unknown")).title(),
+                    format_duration(float(summary.get("tracked_seconds", 0.0))),
+                    format_ratio(_optional_float(summary.get("focused_active_ratio"))),
+                    format_duration(phone_seconds),
+                ),
+            )
+            summaries_by_item[item] = summary
+
+        def show_selected(_event: object | None = None) -> None:
+            selection = tree.selection()
+            if not selection:
+                return
+            summary = summaries_by_item[selection[0]]
+            status_seconds = summary.get("status_seconds", {})
+            lines = [
+                f"Session: {summary.get('session_id', 'unknown')}",
+                f"Started: {summary.get('started_at', 'unknown')}",
+                f"Ended: {summary.get('ended_at') or 'Active'}",
+                f"Final status: {summary.get('final_status', 'unknown')}",
+                f"Final reason: {summary.get('final_reason', 'unknown')}",
+                f"Transitions: {summary.get('transition_count', 0)}",
+                "Diagnostic images: "
+                f"{summary.get('diagnostic_frame_count', 0)} "
+                f"(enabled: {summary.get('diagnostic_output_enabled', False)})",
+                "",
+                "Status durations:",
+            ]
+            for status in Status:
+                seconds = float(status_seconds.get(status.value, 0.0))
+                lines.append(f"  {STATUS_LABELS[status]}: {format_duration(seconds)}")
+            details.configure(state="normal")
+            details.delete("1.0", self.tk.END)
+            details.insert("1.0", "\n".join(lines))
+            details.configure(state="disabled")
+
+        tree.bind("<<TreeviewSelect>>", show_selected)
+        items = tree.get_children()
+        if items:
+            tree.selection_set(items[0])
+            show_selected()
+        else:
+            details.configure(state="normal")
+            details.insert("1.0", "No saved sessions.")
+            details.configure(state="disabled")
+
+    def _toggle_diagnostics(self) -> None:
+        enabled = bool(self.diagnostic_value.get())
+        if enabled:
+            confirmed = self.messagebox.askyesno(
+                "Save diagnostic output",
+                "Diagnostic images can show you, other people, and your room. "
+                "Save sampled images for the next session?",
+            )
+            if not confirmed:
+                self.diagnostic_value.set(False)
+                self._update_privacy_text()
+                return
+        try:
+            self.controller.save_diagnostic_setting(enabled)
+        except Exception as error:
+            self.diagnostic_value.set(not enabled)
+            self.message_value.set(f"Diagnostic setting failed: {error}")
+        else:
+            state = "enabled" if enabled else "disabled"
+            self.message_value.set(
+                f"Diagnostic output is {state}. The change applies to the next session."
+            )
+        self._update_privacy_text()
+
+    def _update_privacy_text(self) -> None:
+        self.privacy_value.set(
+            "Sampled diagnostic images stay on this computer. The next session saves images."
+            if self.diagnostic_value.get()
+            else "Normal tracking does not save images or audio."
+        )
+
     def _delete_history(self) -> None:
         confirmed = self.messagebox.askyesno(
             "Delete local history",
-            "Delete all local event and summary files? This action cannot be undone.",
+            "Delete all local events, session summaries, and diagnostic images? "
+            "This action cannot be undone.",
         )
         if confirmed:
             self._run_action("Deleting history", self.controller.delete_history)
@@ -442,6 +724,8 @@ class DeskFocusWindow:
                 outcome, payload = self.actions.get_nowait()
             except queue.Empty:
                 break
+            self._action_in_progress = False
+            self._set_action_buttons_enabled(True)
             if outcome == "error":
                 self.message_value.set(str(payload))
             else:
@@ -451,6 +735,8 @@ class DeskFocusWindow:
                         "Calibration complete. Neutral head angle: "
                         f"{result.neutral_pitch_degrees:.1f}°."
                     )
+                elif name == "Opening preview":
+                    self.message_value.set("Preview closed. Select Start / Resume to track.")
                 else:
                     self.message_value.set(f"{name} complete.")
 
@@ -461,15 +747,16 @@ class DeskFocusWindow:
         else:
             self.status_value.set(STATUS_LABELS[snapshot.status])
             self.status_duration.set(format_duration(snapshot.status_seconds))
-            self.ratio_value.set(format_ratio(snapshot.metrics.focused_active_ratio))
-            self.coverage_value.set(format_ratio(snapshot.metrics.classified_coverage))
+            self._set_session_metrics(snapshot.session_metrics)
             categories = snapshot.metrics.category_seconds
-            self.focused_value.set(format_duration(categories[StatisticsCategory.PRODUCTIVE.value]))
-            self.phone_value.set(format_duration(categories[StatisticsCategory.UNPRODUCTIVE.value]))
-            self.uncertain_value.set(
-                format_duration(categories[StatisticsCategory.UNCERTAIN.value])
+            daily_focused = categories[StatisticsCategory.PRODUCTIVE.value]
+            daily_phone = categories[StatisticsCategory.UNPRODUCTIVE.value]
+            self.today_value.set(
+                "Today: "
+                f"Focused {format_duration(daily_focused)} · "
+                f"Phone {format_duration(daily_phone)} · "
+                f"Coverage {format_ratio(snapshot.metrics.classified_coverage)}"
             )
-            self.excluded_value.set(format_duration(categories[StatisticsCategory.EXCLUDED.value]))
             self.last_sample_value.set(
                 "No successful camera sample"
                 if snapshot.last_sample is None
@@ -478,6 +765,42 @@ class DeskFocusWindow:
             if snapshot.error:
                 self.message_value.set(snapshot.error)
         self.root.after(1000, self._refresh)
+
+    def _set_session_metrics(self, metrics: SessionMetrics | None) -> None:
+        if metrics is None:
+            self.session_value.set("No session. Select Start / Resume to create one.")
+            self.ratio_value.set("Not enough data")
+            self.coverage_value.set("Not enough data")
+            status_seconds = {status.value: 0.0 for status in Status}
+        else:
+            state = "Active" if metrics.active else "Ended"
+            diagnostics = (
+                f" · {metrics.diagnostic_frame_count} diagnostic images"
+                if metrics.diagnostic_output_enabled
+                else ""
+            )
+            self.session_value.set(
+                f"Session {metrics.session_id[:8]} · {state} · "
+                f"Started {metrics.started_at.strftime('%H:%M:%S')}{diagnostics}"
+            )
+            self.ratio_value.set(format_ratio(metrics.focused_active_ratio))
+            self.coverage_value.set(format_ratio(metrics.classified_coverage))
+            status_seconds = metrics.status_seconds
+
+        self.focused_value.set(format_duration(status_seconds[Status.FOCUSED_SCREEN.value]))
+        self.phone_value.set(format_duration(status_seconds[Status.POSSIBLE_PHONE_USE.value]))
+        self.looking_down_value.set(format_duration(status_seconds[Status.LOOKING_DOWN.value]))
+        self.looking_away_value.set(format_duration(status_seconds[Status.LOOKING_AWAY.value]))
+        self.away_value.set(format_duration(status_seconds[Status.AWAY.value]))
+        self.uncertain_value.set(format_duration(status_seconds[Status.UNCERTAIN.value]))
+        self.idle_value.set(format_duration(status_seconds[Status.SYSTEM_IDLE.value]))
+        self.paused_value.set(format_duration(status_seconds[Status.PAUSED.value]))
+        self.camera_error_value.set(format_duration(status_seconds[Status.CAMERA_ERROR.value]))
+
+    def _set_action_buttons_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        for button in self._action_buttons:
+            button.configure(state=state)
 
     def quit(self) -> None:
         self.controller.stop()

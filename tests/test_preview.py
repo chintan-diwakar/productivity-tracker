@@ -53,8 +53,10 @@ class EvidenceLinesTest(unittest.TestCase):
         lines = evidence_lines(evidence, result, self.config)
 
         self.assertIn("PHONE: DETECTED (1, score 0.00)", lines)
-        self.assertIn("HAND: DETECTED (1 points)", lines)
+        self.assertIn("HAND: DETECTED (1 hand, 1 point)", lines)
         self.assertIn("HEAD DOWN: YES (18.0 deg)", lines)
+        self.assertIn("PHONE THRESHOLD: 0.15", lines)
+        self.assertIn("PERSON THRESHOLD: 0.35", lines)
 
 
 class PixelBoxTest(unittest.TestCase):

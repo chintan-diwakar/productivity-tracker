@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from types import ModuleType
 from typing import Any
@@ -30,6 +31,52 @@ class CameraProperties:
     fps: float
     zoom: float = 0.0
     zoom_supported: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CameraDevice:
+    index: int
+    name: str
+    path: str | None = None
+
+    def to_mapping(self) -> dict[str, object]:
+        return {
+            "index": self.index,
+            "name": self.name,
+            "path": self.path,
+        }
+
+
+def enumerate_camera_devices() -> tuple[CameraDevice, ...]:
+    """List camera devices without capturing frames from them."""
+
+    try:
+        from cv2_enumerate_cameras import enumerate_cameras
+    except ImportError as error:
+        raise DependencyError(
+            "Camera discovery is not installed. Install the project with: "
+            f"python -m pip install -e . ({error})"
+        ) from error
+
+    cv2 = import_cv2()
+    if sys.platform == "darwin":
+        backend = cv2.CAP_AVFOUNDATION
+    elif sys.platform.startswith("linux"):
+        backend = cv2.CAP_V4L2
+    else:
+        backend = cv2.CAP_ANY
+
+    devices = []
+    seen_indices = set()
+    for camera in enumerate_cameras(backend):
+        index = int(camera.index)
+        if index in seen_indices:
+            continue
+        seen_indices.add(index)
+        name = str(camera.name).strip() or f"Camera {index}"
+        path_value = str(camera.path).strip() if camera.path else None
+        devices.append(CameraDevice(index=index, name=name, path=path_value))
+    return tuple(devices)
 
 
 class OpenCVCamera:

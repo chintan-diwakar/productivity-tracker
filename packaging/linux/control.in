@@ -4,8 +4,9 @@ Section: utils
 Priority: optional
 Architecture: @ARCHITECTURE@
 Maintainer: Chintan Diwakar
-Depends: libc6 (>= 2.35), libgl1, libglib2.0-0t64, libglib2.0-bin, libsm6, libx11-6, libxext6, libxrender1, xdg-utils
+Depends: libc6 (>= 2.35), libadwaita-1-0 (>= 1.5), libgtk-4-1 (>= 4.14), libgl1, libglib2.0-0t64, libglib2.0-bin, libsm6, libx11-6, libxext6, libxrender1, xdg-utils
 Installed-Size: @INSTALLED_SIZE@
 Description: Local desk-focus tracker
  Desk Focus Tracker uses local camera inference to estimate focused,
- possible phone-use, uncertain, and away time. It does not save frames.
+ possible phone-use, uncertain, and away time. Its GTK 4 and Libadwaita
+ interface follows the GNOME desktop guidelines.

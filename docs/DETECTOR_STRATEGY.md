@@ -16,9 +16,10 @@ The target pipeline combines these independent signals:
 2. Face Landmarker detects faces and estimates head pitch.
 3. Hand Landmarker locates hands when a phone is visible.
 4. A distance rule associates the phone with a hand.
-5. The classifier requires agreement between the phone, hand, and head signals.
+5. The classifier requires a phone near at least one detected hand.
+6. Head direction supplies supporting evidence and changes the confidence.
 
-The classifier returns `UNCERTAIN` when a required signal is absent.
+The person threshold is `0.35`. The phone threshold is `0.15` because the phone object is small.
 
 ## Classification rules
 
@@ -26,12 +27,15 @@ The classifier applies these rules in order:
 
 1. No person and no face becomes `AWAY` after the away delay.
 2. Multiple people or faces become `UNCERTAIN`.
-3. A person without a visible face becomes `LOOKING_AWAY`.
-4. Missing head pose becomes `UNCERTAIN`.
-5. A nearby phone, hand, and downward head become `POSSIBLE_PHONE_USE`.
-6. A downward head without complete phone evidence becomes `LOOKING_DOWN`.
-7. A phone near a hand without a downward head becomes `UNCERTAIN`.
-8. Other single-face results become `FOCUSED_SCREEN`.
+3. A phone near one or two hands becomes `POSSIBLE_PHONE_USE`.
+4. A downward or recent downward pose increases phone-use confidence.
+5. Face occlusion decreases phone-use confidence but does not block the result.
+6. A person without a visible face or hand-held phone becomes `LOOKING_AWAY`.
+7. Missing head pose without a hand-held phone becomes `UNCERTAIN`.
+8. A downward head without complete phone evidence becomes `LOOKING_DOWN`.
+9. Other single-face results become `FOCUSED_SCREEN`.
+
+This rule detects visible hand-held phone behavior. It does not prove that the user looks at the phone.
 
 ## Ultralytics fallback
 
