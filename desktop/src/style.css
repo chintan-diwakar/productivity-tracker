@@ -1,0 +1,27 @@
+.status-card {
+  padding: 28px 30px;
+}
+
+.status-title {
+  font-size: 30pt;
+  font-weight: 800;
+}
+
+.status-duration {
+  font-size: 13pt;
+  opacity: 0.7;
+}
+
+.metric-value {
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.session-summary {
+  opacity: 0.75;
+}
+
+.footer-message {
+  padding: 4px 2px 18px;
+  opacity: 0.8;
+}

@@ -19,7 +19,8 @@ from desk_focus_tracker.config import (
     write_config,
     write_default_config,
 )
-from desk_focus_tracker.desktop import DesktopDependencyError, run_desktop
+from desk_focus_tracker.desktop import DesktopDependencyError
+from desk_focus_tracker.desktop_launcher import run_desktop
 from desk_focus_tracker.detector import create_detector
 from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
 from desk_focus_tracker.domain import DetectionResult

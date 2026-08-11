@@ -44,9 +44,10 @@ onnx = [
 
 [project.scripts]
 desk-focus = "desk_focus_tracker.cli:main"
+desk-focus-engine = "desk_focus_tracker.engine_server:main"
 
 [project.gui-scripts]
-desk-focus-app = "desk_focus_tracker.desktop:main"
+desk-focus-app = "desk_focus_tracker.desktop_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
