@@ -58,7 +58,7 @@ class InferenceWorker:
         self._sequence = 0
         self._thread = threading.Thread(
             target=self._run,
-            name="desk-focus-inference",
+            name="kyf-inference",
             daemon=True,
         )
 
@@ -355,7 +355,7 @@ def run_preview(
     )
     detector = MediaPipeDetector(config)
     worker = InferenceWorker(detector)
-    window_name = "Desk Focus Diagnostic Preview"
+    window_name = "Know Your Focus Diagnostic Preview"
     started = time.monotonic()
     next_inference = started
     frame_times: deque[float] = deque(maxlen=max(2, round(display_fps * 2)))

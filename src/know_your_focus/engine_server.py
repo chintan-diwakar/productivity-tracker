@@ -150,7 +150,7 @@ def serve(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="desk-focus-engine")
+    parser = argparse.ArgumentParser(prog="kyf-engine")
     parser.add_argument("--config", type=Path, help="path to a JSON configuration")
     return parser
 

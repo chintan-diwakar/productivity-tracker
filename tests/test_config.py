@@ -19,14 +19,14 @@ class AppConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             path = Path(temporary_directory) / "configuration.json"
             path.write_text(
-                json.dumps({"capture_fps": 0.5, "data_dir": "~/desk-focus-data"}),
+                json.dumps({"capture_fps": 0.5, "data_dir": "~/kyf-data"}),
                 encoding="utf-8",
             )
 
             config = load_config(path)
 
         self.assertEqual(config.capture_fps, 0.5)
-        self.assertEqual(config.data_dir, Path("~/desk-focus-data").expanduser())
+        self.assertEqual(config.data_dir, Path("~/kyf-data").expanduser())
 
     def test_rejects_unknown_key(self) -> None:
         with self.assertRaisesRegex(ConfigurationError, "unknown configuration keys"):

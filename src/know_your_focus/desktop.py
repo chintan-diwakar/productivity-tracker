@@ -171,7 +171,7 @@ class DesktopController:
             self._thread = threading.Thread(
                 target=self._run_tracker,
                 args=(runner,),
-                name="desk-focus-tracker",
+                name="know-your-focus",
                 daemon=True,
             )
             self._thread.start()
