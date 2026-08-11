@@ -10,7 +10,7 @@ from know_your_focus.desktop import DesktopDependencyError
 
 
 def _frontend_executable() -> Path:
-    configured = os.environ.get("DESK_FOCUS_FRONTEND")
+    configured = os.environ.get("KYF_FRONTEND")
     if configured:
         path = Path(configured).expanduser()
         if path.is_file():
@@ -18,14 +18,14 @@ def _frontend_executable() -> Path:
         raise DesktopDependencyError(f"GTK frontend does not exist: {path}")
 
     project_builds = (
-        Path("desktop/target/release/desk-focus-tracker"),
-        Path("desktop/target/debug/desk-focus-tracker"),
+        Path("desktop/target/release/know-your-focus"),
+        Path("desktop/target/debug/know-your-focus"),
     )
     for path in project_builds:
         if path.is_file():
             return path
 
-    installed = shutil.which("desk-focus-tracker")
+    installed = shutil.which("know-your-focus")
     if installed:
         return Path(installed)
     raise DesktopDependencyError(
