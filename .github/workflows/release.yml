@@ -48,22 +48,22 @@ jobs:
         run: bash packaging/build_ubuntu.sh
       - name: Make sure that the Ubuntu package starts
         run: |
-          (cd dist && sha256sum -c desk-focus-tracker_*.deb.sha256)
-          sudo apt-get install --yes ./dist/desk-focus-tracker_*.deb
-          python -m desk_focus_tracker.cli download-models
+          (cd dist && sha256sum -c know-your-focus_*.deb.sha256)
+          sudo apt-get install --yes ./dist/know-your-focus_*.deb
+          python -m know_your_focus.cli download-models
           printf '%s\n%s\n' \
             '{"id":1,"command":"start"}' \
             '{"id":2,"command":"shutdown"}' \
-            | /opt/desk-focus-tracker/engine/desk-focus-engine \
-            > /tmp/desk-focus-engine-smoke.jsonl
-          grep -q '"id":1,"ok":true' /tmp/desk-focus-engine-smoke.jsonl
-          grep -q '"id":2,"ok":true' /tmp/desk-focus-engine-smoke.jsonl
+            | /opt/know-your-focus/engine/kyf-engine \
+            > /tmp/kyf-engine-smoke.jsonl
+          grep -q '"id":1,"ok":true' /tmp/kyf-engine-smoke.jsonl
+          grep -q '"id":2,"ok":true' /tmp/kyf-engine-smoke.jsonl
           set +e
-          xvfb-run -a timeout 5 /usr/bin/desk-focus-tracker
+          xvfb-run -a timeout 5 /usr/bin/know-your-focus
           app_status=$?
           set -e
           test "$app_status" -eq 124
-          test -f "$HOME/.config/desk-focus-tracker/configuration.json"
+          test -f "$HOME/.config/know-your-focus/configuration.json"
       - uses: actions/upload-artifact@v7
         with:
           name: ubuntu-package
@@ -105,8 +105,8 @@ jobs:
       - name: Install the Apple signing certificate
         if: env.MACOS_CERTIFICATE_BASE64 != ''
         run: |
-          certificate_path="$RUNNER_TEMP/desk-focus-certificate.p12"
-          keychain_path="$RUNNER_TEMP/desk-focus-signing.keychain-db"
+          certificate_path="$RUNNER_TEMP/know-your-focus-certificate.p12"
+          keychain_path="$RUNNER_TEMP/know-your-focus-signing.keychain-db"
           keychain_password="$(openssl rand -hex 24)"
           echo -n "$MACOS_CERTIFICATE_BASE64" | base64 --decode -o "$certificate_path"
           security create-keychain -p "$keychain_password" "$keychain_path"
@@ -127,19 +127,19 @@ jobs:
         run: bash packaging/build_macos.sh
       - name: Make sure that the packaged engine starts
         run: |
-          python -m desk_focus_tracker.cli download-models
+          python -m know_your_focus.cli download-models
           printf '%s\n%s\n' \
             '{"id":1,"command":"start"}' \
             '{"id":2,"command":"shutdown"}' \
-            | "dist/Desk Focus Tracker.app/Contents/Resources/engine/desk-focus-engine" \
-            > "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
-          grep -q '"id":1,"ok":true' "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
-          grep -q '"id":2,"ok":true' "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
+            | "dist/Know Your Focus.app/Contents/Resources/engine/kyf-engine" \
+            > "$RUNNER_TEMP/kyf-engine-smoke.jsonl"
+          grep -q '"id":1,"ok":true' "$RUNNER_TEMP/kyf-engine-smoke.jsonl"
+          grep -q '"id":2,"ok":true' "$RUNNER_TEMP/kyf-engine-smoke.jsonl"
       - name: Make sure that the macOS checksum matches
-        run: (cd dist && shasum -a 256 -c DeskFocusTracker-*.dmg.sha256)
+        run: (cd dist && shasum -a 256 -c KnowYourFocus-*.dmg.sha256)
       - name: Remove the temporary signing keychain
         if: always() && env.MACOS_CERTIFICATE_BASE64 != ''
-        run: security delete-keychain "$RUNNER_TEMP/desk-focus-signing.keychain-db"
+        run: security delete-keychain "$RUNNER_TEMP/know-your-focus-signing.keychain-db"
       - uses: actions/upload-artifact@v7
         with:
           name: macos-package
