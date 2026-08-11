@@ -11,6 +11,7 @@ application_root="$stage_root/opt/desk-focus-tracker"
 artifact="$project_root/dist/desk-focus-tracker_${release_version}_${architecture}.deb"
 
 cd "$project_root"
+cargo build --locked --release --manifest-path desktop/Cargo.toml
 python -m PyInstaller --clean --noconfirm packaging/desk_focus.spec
 
 rm -rf "$stage_root"
@@ -20,7 +21,10 @@ mkdir -p \
   "$stage_root/usr/bin" \
   "$stage_root/usr/share/applications" \
   "$stage_root/usr/share/icons/hicolor/scalable/apps"
-cp -a dist/DeskFocusTracker/. "$application_root/"
+install -m 0755 desktop/target/release/desk-focus-tracker \
+  "$application_root/desk-focus-tracker"
+mkdir -p "$application_root/engine"
+cp -a dist/DeskFocusEngine/. "$application_root/engine/"
 ln -s /opt/desk-focus-tracker/desk-focus-tracker "$stage_root/usr/bin/desk-focus-tracker"
 install -m 0644 packaging/linux/desk-focus-tracker.desktop \
   "$stage_root/usr/share/applications/desk-focus-tracker.desktop"

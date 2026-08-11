@@ -2,6 +2,7 @@
 .venv
 build
 dist
+target
 data
 models
 packaging/generated

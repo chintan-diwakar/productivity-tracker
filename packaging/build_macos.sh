@@ -6,6 +6,7 @@ release_version="${RELEASE_VERSION:-0.1.0}"
 release_version="${release_version#v}"
 export RELEASE_VERSION="$release_version"
 architecture="$(uname -m)"
+app="$project_root/dist/Desk Focus Tracker.app"
 artifact="$project_root/dist/DeskFocusTracker-${release_version}-macOS-${architecture}.dmg"
 
 notary_values=0
@@ -21,19 +22,65 @@ if [[ "$notary_values" -eq 3 && -z "${APPLE_CODESIGN_IDENTITY:-}" ]]; then
   exit 2
 fi
 
+for command in cargo dylibbundler brew; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "Missing build dependency: $command" >&2
+    exit 2
+  fi
+done
+
 cd "$project_root"
 python packaging/build_icon.py packaging/generated
 iconutil -c icns packaging/generated/desk-focus.iconset \
   -o packaging/generated/desk-focus.icns
+cargo build --locked --release --manifest-path desktop/Cargo.toml
 python -m PyInstaller --clean --noconfirm packaging/desk_focus.spec
 
-if [[ -n "${APPLE_CODESIGN_IDENTITY:-}" ]]; then
-  codesign --verify --deep --strict --verbose=2 "dist/Desk Focus Tracker.app"
+rm -rf "$app"
+mkdir -p \
+  "$app/Contents/MacOS" \
+  "$app/Contents/Frameworks" \
+  "$app/Contents/Resources/engine" \
+  "$app/Contents/Resources/share/glib-2.0" \
+  "$app/Contents/Resources/share/icons"
+install -m 0755 desktop/target/release/desk-focus-tracker \
+  "$app/Contents/MacOS/desk-focus-tracker"
+cp -a dist/DeskFocusEngine/. "$app/Contents/Resources/engine/"
+cp packaging/generated/desk-focus.icns "$app/Contents/Resources/desk-focus.icns"
+sed "s/@VERSION@/$release_version/g" packaging/macos/Info.plist.in \
+  > "$app/Contents/Info.plist"
+
+homebrew_prefix="$(brew --prefix)"
+cp -a "$homebrew_prefix/share/glib-2.0/schemas" \
+  "$app/Contents/Resources/share/glib-2.0/"
+for icon_theme in Adwaita hicolor; do
+  if [[ -d "$homebrew_prefix/share/icons/$icon_theme" ]]; then
+    cp -a "$homebrew_prefix/share/icons/$icon_theme" \
+      "$app/Contents/Resources/share/icons/"
+  fi
+done
+glib-compile-schemas "$app/Contents/Resources/share/glib-2.0/schemas"
+
+dylibbundler \
+  -od \
+  -b \
+  -x "$app/Contents/MacOS/desk-focus-tracker" \
+  -d "$app/Contents/Frameworks" \
+  -p @executable_path/../Frameworks
+
+signing_identity="${APPLE_CODESIGN_IDENTITY:--}"
+codesign_arguments=(--force --deep --sign "$signing_identity")
+if [[ "$signing_identity" != "-" ]]; then
+  codesign_arguments+=(--options runtime --timestamp)
 fi
+codesign "${codesign_arguments[@]}" \
+  --entitlements packaging/macos/DeskFocusTracker.entitlements \
+  "$app"
+codesign --verify --deep --strict --verbose=2 "$app"
 
 hdiutil create \
   -volname "Desk Focus Tracker" \
-  -srcfolder "dist/Desk Focus Tracker.app" \
+  -srcfolder "$app" \
   -ov \
   -format UDZO \
   "$artifact"
@@ -48,7 +95,6 @@ if [[ "$notary_values" -eq 3 ]]; then
 fi
 
 hdiutil verify "$artifact"
-
 (
   cd "$(dirname "$artifact")"
   artifact_name="$(basename "$artifact")"
