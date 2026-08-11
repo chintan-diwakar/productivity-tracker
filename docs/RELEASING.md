@@ -9,11 +9,19 @@ Version `0.1.0` has two package targets:
 | Debian package | Ubuntu 24.04, AMD64 |
 | Disk image | macOS 13 or later, Apple Silicon |
 
-PyInstaller creates a package for its current operating system. The GitHub workflow uses separate Ubuntu and macOS jobs.
+The Rust binary provides the GTK 4 and Libadwaita interface. PyInstaller packages the Python tracking engine.
+
+The GitHub workflow uses separate Ubuntu and macOS jobs.
 
 ## Build the Ubuntu package
 
-Install Python 3.12, Tk, and the package build tools. Then run these commands:
+Install Python 3.12 and Rust 1.92. Then install the Ubuntu build libraries:
+
+```bash
+sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
+```
+
+Install the Python build tools. Then build the package:
 
 ```bash
 python -m pip install '.[dev,packaging]'
@@ -30,23 +38,33 @@ desk-focus-tracker_0.1.0_amd64.deb.sha256
 The Docker build gives a repeatable Ubuntu 24.04 environment:
 
 ```bash
-docker build -f packaging/Dockerfile.ubuntu -t desk-focus-ubuntu-builder:0.1.0 .
-docker run --rm \
-  -e RELEASE_VERSION=0.1.0 \
-  -v "$PWD/dist:/output" \
-  desk-focus-ubuntu-builder:0.1.0
+docker build \
+  -f packaging/Dockerfile.ubuntu \
+  --build-arg RELEASE_VERSION=0.1.0 \
+  --output type=local,dest=dist \
+  .
 ```
 
 ## Build a macOS test package
 
-Run these commands on Apple Silicon macOS:
+Install Python 3.12 and Rust 1.92 on Apple Silicon macOS.
+
+Install the GTK libraries and the dynamic-library bundler:
+
+```bash
+brew install gtk4 libadwaita dylibbundler
+```
+
+Install the Python build tools. Then build the package:
 
 ```bash
 python -m pip install '.[dev,packaging]'
 RELEASE_VERSION=0.1.0 bash packaging/build_macos.sh
 ```
 
-This command creates an ad-hoc signed test disk image. It does not create a public release package.
+This command creates an ad-hoc signed test disk image. The disk image contains GTK, Libadwaita, and the Python engine.
+
+The test disk image is not a public release package.
 
 ## Configure signed macOS releases
 
@@ -61,7 +79,7 @@ Add these GitHub Actions secrets:
 | `APPLE_TEAM_ID` | Apple Developer team identifier |
 | `APPLE_APP_PASSWORD` | App-specific password for notarization |
 
-The release workflow imports the certificate into a temporary keychain. PyInstaller signs the application with the hardened runtime.
+The release workflow imports the certificate into a temporary keychain. The build script signs the complete application with the hardened runtime.
 
 The build script submits the disk image to Apple. It waits for notarization and staples the result.
 

@@ -20,6 +20,8 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 - A rolling window prevents one-frame status changes.
 - System idle detection stops camera work during user inactivity.
 - Start, pause, timed pause, calibration, and preview controls are available in a small desktop window.
+- The Ubuntu window uses GTK 4 and Libadwaita through the Rust `gtk4-rs` bindings.
+- Platform interfaces use one local JSON protocol and one shared Python tracking engine.
 - The application shows focused active time and classified coverage.
 - JSON Lines files store status transitions.
 - JSON files store daily summaries.
@@ -59,7 +61,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for package build and release instruc
 
 ## Development setup
 
-Python 3.10 or a later version is required.
+Python 3.10 or a later version is required. Rust 1.92 is required for the desktop interface.
+
+On Ubuntu 24.04, install the desktop build libraries:
+
+```bash
+sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
+```
+
+On macOS, install the desktop build libraries:
+
+```bash
+brew install gtk4 libadwaita
+```
+
+Install the Rust toolchain:
+
+```bash
+rustup toolchain install 1.92.0
+```
 
 1. Create a virtual environment.
 
@@ -85,13 +105,27 @@ Python 3.10 or a later version is required.
    .venv/bin/desk-focus init-config --path configuration.json
    ```
 
-5. Start the tracker.
+5. Build the GTK desktop interface.
 
    ```bash
-   .venv/bin/desk-focus run --config configuration.json
+   cargo build --manifest-path desktop/Cargo.toml
    ```
 
-6. Press `Ctrl+C` to stop the tracker.
+6. Start the desktop application.
+
+   ```bash
+   .venv/bin/desk-focus app --config configuration.json
+   ```
+
+The Rust process shows the interface. A private JSON Lines connection links it to the Python tracking engine.
+
+To start only the tracking engine, run this command:
+
+```bash
+.venv/bin/desk-focus run --config configuration.json
+```
+
+Press `Ctrl+C` to stop the tracking engine.
 
 Use a short run to make sure that the camera works:
 
@@ -111,6 +145,13 @@ Run the installed development test suite:
 
 ```bash
 .venv/bin/pytest
+```
+
+Make sure that the Rust frontend passes its checks:
+
+```bash
+cargo fmt --manifest-path desktop/Cargo.toml --check
+cargo clippy --locked --manifest-path desktop/Cargo.toml -- -D warnings
 ```
 
 Measure model speed and peak memory without a camera:

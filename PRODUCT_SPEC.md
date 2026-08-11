@@ -130,17 +130,24 @@ The interface must also show excluded and uncertain time. This information preve
 - Keep status transitions in the event log with the session identifier.
 - Write one atomic JSON summary for each session.
 
-### 4.7 Tray or menu-bar interface
+### 4.7 Desktop interface
 
-- Show a small status icon.
+- Keep camera inference and session storage in the Python engine process.
+- Use a local JSON Lines connection between the interface and the engine.
+- Keep all classification rules and metrics out of the platform interfaces.
+- Use GTK 4, Libadwaita, and Rust `gtk4-rs` for Ubuntu.
+- Use SwiftUI and AppKit for macOS.
+- Use WinUI for a later Windows release.
 - Show today’s productive and unproductive time.
 - Provide `Start`, `Pause`, `Pause for 15 minutes`, and `Quit` actions.
 - Provide an action to open the data folder.
 - Provide an action to delete local history.
 - Show camera and model errors without repeated notifications.
-- Keep the interface usable when tray support is unavailable.
+- Use an adaptive, scrollable layout for small displays.
+- Follow the GNOME interface guidelines on Ubuntu.
+- Follow the Apple interface guidelines on macOS.
 
-Tkinter can provide a small fallback window. Rumps can support macOS, and AppIndicator can support compatible Linux desktops.
+A tray or menu-bar interface is not part of the first alpha release.
 
 ### 4.8 Local data storage
 
@@ -448,7 +455,7 @@ The MVP is complete when all these conditions are true:
 4. Define the policy for sustained `LOOKING_DOWN` time.
 5. Define the default retention period and data directory.
 6. Select the operating-system API for idle detection.
-7. Decide whether the first interface uses Tkinter or a native tray library.
+7. Define the tray or menu-bar design for a later release.
 8. Define the first accuracy target after a baseline evaluation.
 
 ## 13. Suggested implementation stages
