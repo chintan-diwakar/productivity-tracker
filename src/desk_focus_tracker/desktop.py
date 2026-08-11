@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from desk_focus_tracker.calibration import CalibrationResult, calibrate_neutral_head
-from desk_focus_tracker.camera import OpenCVCamera
+from desk_focus_tracker.camera import CameraDevice, OpenCVCamera, enumerate_camera_devices
 from desk_focus_tracker.config import (
     AppConfig,
     default_config_path,
@@ -106,6 +106,9 @@ class DesktopController:
         except Exception:
             return False
         return True
+
+    def available_cameras(self) -> tuple[CameraDevice, ...]:
+        return enumerate_camera_devices()
 
     def download_models(self) -> tuple[Path, ...]:
         paths = tuple(ModelStore(self.config.model_dir).download_all())
