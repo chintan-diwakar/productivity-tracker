@@ -137,6 +137,7 @@ class DesktopController:
                     configuration_version=config.configuration_version,
                     diagnostic_output_enabled=config.save_diagnostic_frames,
                 )
+                logger.recover_interrupted_sessions()
                 diagnostic_writer = (
                     DiagnosticFrameWriter(
                         logger.session_directory,

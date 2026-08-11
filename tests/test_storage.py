@@ -92,6 +92,25 @@ class JsonlSessionLoggerTest(unittest.TestCase):
         self.assertEqual(metrics.session_id, "second")
         self.assertEqual(metrics.tracked_seconds, 0.0)
 
+    def test_recovers_a_stale_active_session_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            data_dir = Path(temporary_directory)
+            started_at = datetime(2026, 8, 10, 9, 0, tzinfo=timezone.utc)
+            recovered_at = started_at + timedelta(minutes=5)
+            focused = DetectionResult(Status.FOCUSED_SCREEN, 0.8, "focused")
+            active = JsonlSessionLogger(data_dir, "test-model", 1, session_id="active")
+            active.start(focused, started_at, 100.0)
+            recovery = JsonlSessionLogger(data_dir, "test-model", 1, session_id="next")
+
+            recovered = recovery.recover_interrupted_sessions(recovered_at)
+
+            summary = json.loads((data_dir / "sessions" / "active" / "summary.json").read_text())
+
+        self.assertEqual(recovered, (data_dir / "sessions" / "active" / "summary.json",))
+        self.assertEqual(summary["state"], "interrupted")
+        self.assertEqual(summary["ended_at"], started_at.isoformat())
+        self.assertEqual(summary["generated_at"], recovered_at.isoformat())
+
     def test_lists_session_summaries_with_newest_first(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             data_dir = Path(temporary_directory)
@@ -123,6 +142,27 @@ class JsonlSessionLoggerTest(unittest.TestCase):
             summary = logger.rebuild_summary(day)
 
         self.assertEqual(summary["status_seconds"]["FOCUSED_SCREEN"], 4.0)
+
+    def test_appends_after_an_incomplete_final_event(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            data_dir = Path(temporary_directory)
+            event_path = data_dir / "events-2026-08-10.jsonl"
+            event_path.write_text('{"incomplete":', encoding="utf-8")
+            logger = JsonlSessionLogger(
+                data_dir,
+                "test-model",
+                1,
+                session_id="recovered-session",
+            )
+            started_at = datetime(2026, 8, 10, 9, 0, tzinfo=timezone.utc)
+            focused = DetectionResult(Status.FOCUSED_SCREEN, 0.8, "focused")
+
+            logger.start(focused, started_at, monotonic_seconds=100.0)
+
+            lines = event_path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(lines[0], '{"incomplete":')
+        self.assertEqual(json.loads(lines[1])["session_id"], "recovered-session")
 
     def test_splits_a_segment_at_local_midnight(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

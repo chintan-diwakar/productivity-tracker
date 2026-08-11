@@ -262,6 +262,41 @@ class JsonlSessionLogger:
             summary.pop("_started_at_sort", None)
         return tuple(summaries)
 
+    def recover_interrupted_sessions(
+        self,
+        recovered_at: datetime | None = None,
+    ) -> tuple[Path, ...]:
+        """Close stale active summaries after the caller acquires the data lock."""
+
+        recovery_time = recovered_at or datetime.now().astimezone()
+        self._require_offset(recovery_time)
+        sessions_path = self._data_dir / "sessions"
+        if not sessions_path.exists():
+            return ()
+
+        recovered: list[Path] = []
+        with self._lock:
+            for summary_path in sorted(sessions_path.glob("*/summary.json")):
+                try:
+                    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not isinstance(summary, dict) or summary.get("state") != "active":
+                    continue
+                last_update = summary.get("generated_at")
+                if not isinstance(last_update, str):
+                    last_update = recovery_time.isoformat()
+                summary["generated_at"] = recovery_time.isoformat()
+                summary["ended_at"] = last_update
+                summary["state"] = "interrupted"
+                self._write_json_atomic(
+                    summary_path,
+                    summary,
+                    description="interrupted session summary",
+                )
+                recovered.append(summary_path)
+        return tuple(recovered)
+
     def prune(self, retention_days: int, today: date | None = None) -> tuple[Path, ...]:
         if retention_days <= 0:
             raise ValueError("retention_days must be positive")
@@ -371,11 +406,17 @@ class JsonlSessionLogger:
         }
         path = self._event_path(event_day or now.date())
         encoded = (json.dumps(event, separators=(",", ":")) + "\n").encode("utf-8")
-        flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+        flags = os.O_APPEND | os.O_CREAT | os.O_RDWR
         try:
             descriptor = os.open(path, flags, 0o600)
             with os.fdopen(descriptor, "ab") as stream:
-                stream.write(encoded)
+                size = os.fstat(stream.fileno()).st_size
+                separator = b""
+                if size > 0:
+                    os.lseek(stream.fileno(), -1, os.SEEK_END)
+                    if os.read(stream.fileno(), 1) != b"\n":
+                        separator = b"\n"
+                stream.write(separator + encoded)
                 stream.flush()
                 os.fsync(stream.fileno())
         except OSError as error:
@@ -451,24 +492,33 @@ class JsonlSessionLogger:
             "configuration_version": self._configuration_version,
             **metrics.to_mapping(),
         }
+        self._write_json_atomic(destination, summary, description="session summary")
+
+    @staticmethod
+    def _write_json_atomic(
+        destination: Path,
+        values: dict[str, Any],
+        *,
+        description: str,
+    ) -> None:
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
-                dir=self._session_directory,
-                prefix=".summary.json.",
+                dir=destination.parent,
+                prefix=f".{destination.name}.",
                 delete=False,
             ) as stream:
                 temporary_path = Path(stream.name)
-                json.dump(summary, stream, indent=2)
+                json.dump(values, stream, indent=2)
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             os.chmod(temporary_path, 0o600)
             os.replace(temporary_path, destination)
         except OSError as error:
-            raise StorageError(f"cannot write session summary {destination}: {error}") from error
+            raise StorageError(f"cannot write {description} {destination}: {error}") from error
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
