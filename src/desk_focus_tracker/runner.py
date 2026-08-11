@@ -93,6 +93,7 @@ class TrackerRunner:
 
         run_started = time.monotonic()
         logger_started = False
+        first_iteration = True
         try:
             now = datetime.now().astimezone()
             current_monotonic = time.monotonic()
@@ -103,10 +104,13 @@ class TrackerRunner:
 
             while not self._stop_is_requested():
                 current_monotonic = time.monotonic()
-                if duration_seconds is not None:
+                # Always run the first iteration: the startup writes above can
+                # outlast a short duration on a slow machine.
+                if duration_seconds is not None and not first_iteration:
                     remaining = duration_seconds - (current_monotonic - run_started)
                     if remaining <= 0.0:
                         break
+                first_iteration = False
 
                 now = datetime.now().astimezone()
                 self._logger.checkpoint(now, current_monotonic)
