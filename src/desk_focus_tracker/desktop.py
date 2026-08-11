@@ -394,13 +394,9 @@ class DeskFocusWindow:
         self.today_value = tk.StringVar(value="Today: no classified time")
         self.last_sample_value = tk.StringVar(value="No successful sample")
         self.message_value = tk.StringVar(value="Tracking starts only when you select Start.")
-        self.privacy_value = tk.StringVar(
-            value="Normal tracking does not save images or audio."
-        )
+        self.privacy_value = tk.StringVar(value="Normal tracking does not save images or audio.")
         self.camera_index_value = tk.StringVar(value=str(controller.config.camera_index))
-        self.diagnostic_value = tk.BooleanVar(
-            value=controller.config.save_diagnostic_frames
-        )
+        self.diagnostic_value = tk.BooleanVar(value=controller.config.save_diagnostic_frames)
         self._update_privacy_text()
         self._build()
         self.root.after(200, self._refresh)

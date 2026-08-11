@@ -79,9 +79,9 @@ class DiagnosticFrameWriter:
             "metrics": dict(result.metrics),
         }
         try:
-            encoded_record = (
-                json.dumps(manifest_record, separators=(",", ":")) + "\n"
-            ).encode("utf-8")
+            encoded_record = (json.dumps(manifest_record, separators=(",", ":")) + "\n").encode(
+                "utf-8"
+            )
             descriptor = os.open(
                 self._manifest_path,
                 os.O_APPEND | os.O_CREAT | os.O_WRONLY,

@@ -146,8 +146,7 @@ def evidence_lines(
         hand_label = "hand" if hand_count == 1 else "hands"
         point_label = "point" if len(evidence.hand_points) == 1 else "points"
         hand = (
-            f"HAND: DETECTED ({hand_count} {hand_label}, "
-            f"{len(evidence.hand_points)} {point_label})"
+            f"HAND: DETECTED ({hand_count} {hand_label}, {len(evidence.hand_points)} {point_label})"
         )
     else:
         hand = "HAND: NOT DETECTED"
