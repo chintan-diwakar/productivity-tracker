@@ -1,8 +1,10 @@
-# Desk Focus Tracker: Product Specification
+# Know Your Focus: Product Specification
 
 ## 1. Purpose
 
-Desk Focus Tracker is a local desktop application that estimates desk-focus time from a webcam.
+Know Your Focus (KYF) is a local desktop application. It measures the time at your workstation with a webcam.
+
+The application reports focused time, phone use, uncertain time, and away time.
 
 The application samples video at a low rate. It does not record continuous video or audio.
 
@@ -391,10 +393,10 @@ The project must publish evaluation methods before it describes the detector as 
 
 | Edge case | Required behavior |
 | --- | --- |
-| The desktop has no system tray. | Open the fallback status window. |
-| The tray process restarts. | Reconnect it to the running tracking service. |
+| The desktop has no system tray. | Show all status and controls in the application window. |
+| The interface process restarts. | Reconnect it to the running tracking engine. |
 | The user quits during inference. | Stop new capture, finish or cancel inference, and release the camera. |
-| Notifications are disabled. | Keep errors visible in the tray menu. |
+| Notifications are disabled. | Keep errors visible in the application window. |
 | The system starts the application automatically. | Respect the last pause policy and permission state. |
 | The user selects pause for 15 minutes. | Use monotonic time and show the remaining pause time. |
 

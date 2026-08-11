@@ -56,7 +56,7 @@ Use one of the status codes from [PRODUCT_SPEC.md](../PRODUCT_SPEC.md).
 Create the report:
 
 ```bash
-desk-focus evaluate labels.jsonl --output evaluation-report.json
+kyf evaluate labels.jsonl --output evaluation-report.json
 ```
 
 The report contains the primary metric and the full confusion matrix. Keep the labeled source with each report.

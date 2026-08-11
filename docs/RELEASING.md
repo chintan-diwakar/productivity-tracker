@@ -31,8 +31,8 @@ RELEASE_VERSION=0.1.0 bash packaging/build_ubuntu.sh
 The script creates these files in `dist/`:
 
 ```text
-desk-focus-tracker_0.1.0_amd64.deb
-desk-focus-tracker_0.1.0_amd64.deb.sha256
+know-your-focus_0.1.0_amd64.deb
+know-your-focus_0.1.0_amd64.deb.sha256
 ```
 
 The Docker build gives a repeatable Ubuntu 24.04 environment:
