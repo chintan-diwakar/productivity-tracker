@@ -29,8 +29,8 @@ def create_icon(size: int) -> Image.Image:
 
 def main(output_directory: Path) -> int:
     output_directory.mkdir(parents=True, exist_ok=True)
-    create_icon(1024).save(output_directory / "desk-focus.png")
-    iconset = output_directory / "desk-focus.iconset"
+    create_icon(1024).save(output_directory / "know-your-focus.png")
+    iconset = output_directory / "know-your-focus.iconset"
     iconset.mkdir(exist_ok=True)
     for size in SIZES:
         create_icon(size).save(iconset / f"icon_{size}x{size}.png")

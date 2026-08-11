@@ -6,8 +6,8 @@ release_version="${RELEASE_VERSION:-0.1.0}"
 release_version="${release_version#v}"
 export RELEASE_VERSION="$release_version"
 architecture="$(uname -m)"
-app="$project_root/dist/Desk Focus Tracker.app"
-artifact="$project_root/dist/DeskFocusTracker-${release_version}-macOS-${architecture}.dmg"
+app="$project_root/dist/Know Your Focus.app"
+artifact="$project_root/dist/KnowYourFocus-${release_version}-macOS-${architecture}.dmg"
 
 notary_values=0
 [[ -n "${APPLE_ID:-}" ]] && ((notary_values += 1))
@@ -31,10 +31,10 @@ done
 
 cd "$project_root"
 python packaging/build_icon.py packaging/generated
-iconutil -c icns packaging/generated/desk-focus.iconset \
-  -o packaging/generated/desk-focus.icns
+iconutil -c icns packaging/generated/know-your-focus.iconset \
+  -o packaging/generated/know-your-focus.icns
 cargo build --locked --release --manifest-path desktop/Cargo.toml
-python -m PyInstaller --clean --noconfirm packaging/desk_focus.spec
+python -m PyInstaller --clean --noconfirm packaging/know_your_focus.spec
 
 rm -rf "$app"
 mkdir -p \
@@ -43,10 +43,10 @@ mkdir -p \
   "$app/Contents/Resources/engine" \
   "$app/Contents/Resources/share/glib-2.0" \
   "$app/Contents/Resources/share/icons"
-install -m 0755 desktop/target/release/desk-focus-tracker \
-  "$app/Contents/MacOS/desk-focus-tracker"
-cp -a dist/DeskFocusEngine/. "$app/Contents/Resources/engine/"
-cp packaging/generated/desk-focus.icns "$app/Contents/Resources/desk-focus.icns"
+install -m 0755 desktop/target/release/know-your-focus \
+  "$app/Contents/MacOS/know-your-focus"
+cp -a dist/KyfEngine/. "$app/Contents/Resources/engine/"
+cp packaging/generated/know-your-focus.icns "$app/Contents/Resources/know-your-focus.icns"
 sed "s/@VERSION@/$release_version/g" packaging/macos/Info.plist.in \
   > "$app/Contents/Info.plist"
 
@@ -67,7 +67,7 @@ glib-compile-schemas "$app/Contents/Resources/share/glib-2.0/schemas"
 dylibbundler \
   -od \
   -b \
-  -x "$app/Contents/MacOS/desk-focus-tracker" \
+  -x "$app/Contents/MacOS/know-your-focus" \
   -d "$app/Contents/Frameworks" \
   -p @executable_path/../Frameworks
 
@@ -77,12 +77,12 @@ if [[ "$signing_identity" != "-" ]]; then
   codesign_arguments+=(--options runtime --timestamp)
 fi
 codesign "${codesign_arguments[@]}" \
-  --entitlements packaging/macos/DeskFocusTracker.entitlements \
+  --entitlements packaging/macos/KnowYourFocus.entitlements \
   "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 
 hdiutil create \
-  -volname "Desk Focus Tracker" \
+  -volname "Know Your Focus" \
   -srcfolder "$app" \
   -ov \
   -format UDZO \
