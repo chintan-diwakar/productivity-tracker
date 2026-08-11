@@ -20,12 +20,27 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: clippy,rustfmt
+      - name: Install Linux GUI libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev
+      - name: Install macOS GUI libraries
+        if: runner.os == 'macOS'
+        run: brew install gtk4 libadwaita dylibbundler
       - name: Install the project
         run: python -m pip install --upgrade pip ".[dev,packaging]"
       - name: Run the format check
-        run: python -m ruff format --check src tests packaging/build_icon.py packaging/desktop_entry.py
+        run: python -m ruff format --check src tests packaging/build_icon.py packaging/engine_entry.py
       - name: Run the code check
-        run: python -m ruff check src tests packaging/build_icon.py packaging/desktop_entry.py
+        run: python -m ruff check src tests packaging/build_icon.py packaging/engine_entry.py
+      - name: Check the GTK frontend format
+        run: cargo fmt --manifest-path desktop/Cargo.toml --check
+      - name: Check the GTK frontend
+        run: cargo clippy --locked --manifest-path desktop/Cargo.toml -- -D warnings
       - name: Run the tests
         run: python -m pytest
       - name: Build the macOS test package

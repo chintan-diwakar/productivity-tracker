@@ -26,13 +26,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: dtolnay/rust-toolchain@1.92.0
       - name: Install system libraries
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
-            python3-tk \
+            libadwaita-1-dev \
             libgl1 \
             libglib2.0-0t64 \
+            libgtk-4-dev \
             libsm6 \
             libxext6 \
             libxrender1 \
@@ -48,6 +50,14 @@ jobs:
         run: |
           (cd dist && sha256sum -c desk-focus-tracker_*.deb.sha256)
           sudo apt-get install --yes ./dist/desk-focus-tracker_*.deb
+          python -m desk_focus_tracker.cli download-models
+          printf '%s\n%s\n' \
+            '{"id":1,"command":"start"}' \
+            '{"id":2,"command":"shutdown"}' \
+            | /opt/desk-focus-tracker/engine/desk-focus-engine \
+            > /tmp/desk-focus-engine-smoke.jsonl
+          grep -q '"id":1,"ok":true' /tmp/desk-focus-engine-smoke.jsonl
+          grep -q '"id":2,"ok":true' /tmp/desk-focus-engine-smoke.jsonl
           set +e
           xvfb-run -a timeout 5 /usr/bin/desk-focus-tracker
           app_status=$?
@@ -76,6 +86,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: dtolnay/rust-toolchain@1.92.0
+      - name: Install GTK packaging libraries
+        run: brew install gtk4 libadwaita dylibbundler
       - name: Install build dependencies
         run: python -m pip install --upgrade pip ".[dev,packaging]"
       - name: Run the tests
@@ -112,6 +125,16 @@ jobs:
           security list-keychain -d user -s "$keychain_path"
       - name: Build the macOS package
         run: bash packaging/build_macos.sh
+      - name: Make sure that the packaged engine starts
+        run: |
+          python -m desk_focus_tracker.cli download-models
+          printf '%s\n%s\n' \
+            '{"id":1,"command":"start"}' \
+            '{"id":2,"command":"shutdown"}' \
+            | "dist/Desk Focus Tracker.app/Contents/Resources/engine/desk-focus-engine" \
+            > "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
+          grep -q '"id":1,"ok":true' "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
+          grep -q '"id":2,"ok":true' "$RUNNER_TEMP/desk-focus-engine-smoke.jsonl"
       - name: Make sure that the macOS checksum matches
         run: (cd dist && shasum -a 256 -c DeskFocusTracker-*.dmg.sha256)
       - name: Remove the temporary signing keychain
