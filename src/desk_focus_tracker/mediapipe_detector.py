@@ -27,7 +27,8 @@ def import_mediapipe() -> ModuleType:
         import mediapipe
     except ImportError as error:
         raise DependencyError(
-            "MediaPipe is not installed. Install the project with: python -m pip install -e ."
+            "MediaPipe could not start. Install the project with: "
+            f"python -m pip install -e . ({error})"
         ) from error
     return mediapipe
 
