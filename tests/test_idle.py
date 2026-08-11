@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.idle import parse_idle_output
+from know_your_focus.idle import parse_idle_output
 
 
 class IdleOutputTest(unittest.TestCase):

@@ -1,6 +1,8 @@
-# Desk Focus Tracker
+# Know Your Focus (KYF)
 
-Desk Focus Tracker estimates desk-focus time from a webcam. All frame processing stays on the local computer.
+Know Your Focus measures the time at your workstation. It reports your focused time, your phone use, your uncertain time, and your away time.
+
+A local camera supplies the images. All frame processing stays on your computer.
 
 The application combines person, phone, face, hand, and head-direction signals. It uses MediaPipe Tasks and local model files.
 
@@ -19,9 +21,9 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 - An away policy delays `AWAY` classification.
 - A rolling window prevents one-frame status changes.
 - System idle detection stops camera work during user inactivity.
-- Start, pause, timed pause, calibration, and preview controls are available in a small desktop window.
+- The desktop window has start, pause, timed pause, calibration, and preview controls.
 - The Ubuntu window uses GTK 4 and Libadwaita through the Rust `gtk4-rs` bindings.
-- Platform interfaces use one local JSON protocol and one shared Python tracking engine.
+- The interfaces use one local JSON protocol and one shared Python tracking engine.
 - The application shows focused active time and classified coverage.
 - JSON Lines files store status transitions.
 - JSON files store daily summaries.
@@ -34,7 +36,7 @@ See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for the complete feature and edge-case sp
 
 ## Install a desktop package
 
-The first pre-release supports these systems:
+The release supports these systems:
 
 - Ubuntu 24.04 on AMD64.
 - macOS 13 or a later version on Apple Silicon.
@@ -44,12 +46,12 @@ Download the package and its checksum from the GitHub release.
 On Ubuntu, install the `.deb` file:
 
 ```bash
-sudo apt install ./desk-focus-tracker_0.1.0_amd64.deb
+sudo apt install ./know-your-focus_1.0.0_amd64.deb
 ```
 
-Open **Desk Focus Tracker** from the application menu.
+Open **Know Your Focus** from the application menu.
 
-On macOS, open the `.dmg` file. Move **Desk Focus Tracker** to the Applications folder.
+On macOS, open the `.dmg` file. Move **Know Your Focus** to the Applications folder.
 
 The application starts in a paused state. Select **Download models** before the first tracking session.
 
@@ -61,7 +63,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for package build and release instruc
 
 ## Development setup
 
-Python 3.10 or a later version is required. Rust 1.92 is required for the desktop interface.
+Python 3.10 or a later version is necessary. Rust 1.92 is necessary for the desktop interface.
 
 On Ubuntu 24.04, install the desktop build libraries:
 
@@ -96,13 +98,13 @@ rustup toolchain install 1.92.0
 3. Download the pinned MediaPipe models.
 
    ```bash
-   .venv/bin/desk-focus download-models
+   .venv/bin/kyf download-models
    ```
 
 4. Create a local configuration.
 
    ```bash
-   .venv/bin/desk-focus init-config --path configuration.json
+   .venv/bin/kyf init-config --path configuration.json
    ```
 
 5. Build the GTK desktop interface.
@@ -114,7 +116,7 @@ rustup toolchain install 1.92.0
 6. Start the desktop application.
 
    ```bash
-   .venv/bin/desk-focus app --config configuration.json
+   .venv/bin/kyf app --config configuration.json
    ```
 
 The Rust process shows the interface. A private JSON Lines connection links it to the Python tracking engine.
@@ -122,7 +124,7 @@ The Rust process shows the interface. A private JSON Lines connection links it t
 To start only the tracking engine, run this command:
 
 ```bash
-.venv/bin/desk-focus run --config configuration.json
+.venv/bin/kyf run --config configuration.json
 ```
 
 Press `Ctrl+C` to stop the tracking engine.
@@ -130,7 +132,7 @@ Press `Ctrl+C` to stop the tracking engine.
 Use a short run to make sure that the camera works:
 
 ```bash
-.venv/bin/desk-focus run --config configuration.json --duration 10
+.venv/bin/kyf run --config configuration.json --duration 10
 ```
 
 ## Tests
@@ -157,13 +159,13 @@ cargo clippy --locked --manifest-path desktop/Cargo.toml -- -D warnings
 Measure model speed and peak memory without a camera:
 
 ```bash
-.venv/bin/desk-focus benchmark --config configuration.json --iterations 10
+.venv/bin/kyf benchmark --config configuration.json --iterations 10
 ```
 
 Show the live diagnostic window:
 
 ```bash
-.venv/bin/desk-focus preview --config configuration.json
+.venv/bin/kyf preview --config configuration.json
 ```
 
 The preview requests `1280x720` at `60 FPS`. It runs inference on smaller frames in a background thread.
@@ -174,29 +176,29 @@ The preview sets camera zoom to `0`. This value gives the widest view on support
 
 The zoom setting cannot increase the physical field of view of the camera lens.
 
-The preview does not save frames or write session logs. Press `Q` or `Esc` to close it.
+The preview does not save frames or write session logs. To close it, press `Q` or `Esc`.
 
 Override the phone threshold for a detection experiment:
 
 ```bash
-.venv/bin/desk-focus preview --config configuration.json --score-threshold 0.15
+.venv/bin/kyf preview --config configuration.json --score-threshold 0.15
 ```
 
 Set different preview and inference rates:
 
 ```bash
-.venv/bin/desk-focus preview --display-fps 60 --inference-fps 10
+.venv/bin/kyf preview --display-fps 60 --inference-fps 10
 ```
 
 Set the widest camera view explicitly:
 
 ```bash
-.venv/bin/desk-focus preview --zoom 0
+.venv/bin/kyf preview --zoom 0
 ```
 
 ## Data
 
-The default data directory follows `XDG_DATA_HOME` on Linux. The fallback path is `~/.local/share/desk-focus-tracker`.
+The default data directory uses `XDG_DATA_HOME` on Linux. The fallback path is `~/.local/share/know-your-focus`.
 
 The application writes these files:
 
@@ -212,15 +214,15 @@ The event file stores state changes and durations. The summary file contains tot
 
 Each session summary contains all status durations, KPI values, versions, and final classification details.
 
-Diagnostic output is disabled by default. Enable **Save diagnostic output** before a session to save sampled images and an evidence manifest.
+Diagnostic output is disabled by default. To save sampled images and an evidence manifest, select **Save diagnostic output** before a session.
 
 Diagnostic images can show the user and the room. The application stores these images locally and limits each session to `3600` images.
 
 ## Models
 
-The application downloads approximately `16 MB` of model files. The default model directory is `~/.cache/desk-focus-tracker/models`.
+The application downloads approximately `16 MB` of model files. The default model directory is `~/.cache/know-your-focus/models`.
 
-The download command verifies each model with a pinned SHA-256 value. Normal application startup never downloads a model.
+The download command makes sure that each model matches a pinned SHA-256 value. Normal application startup never downloads a model.
 
 ## Detection plan
 
@@ -228,7 +230,7 @@ The runtime uses a detector interface. The default adapter uses three MediaPipe 
 
 The object detector runs first. The hand model runs only after the object detector finds a phone.
 
-The application retains the OpenCV frontal-face adapter as a fallback. Set `detector_backend` to `opencv_face` to use it.
+The application keeps the OpenCV frontal-face adapter as a fallback. To use it, set `detector_backend` to `opencv_face`.
 
 The console output and event log include head pitch and evidence counts. Use these values to tune the head-pitch configuration.
 
@@ -238,16 +240,16 @@ See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for the first Ubuntu measurement.
 
 See [docs/METRICS.md](docs/METRICS.md) for metric definitions and evaluation input.
 
-## First-release limits
+## Release limits
 
 - The package uses about `400 MB` after installation.
 - The MediaPipe process used `301-309 MB` in the first memory benchmark.
 - The first detector does not meet the original `150 MB` memory goal.
 - Phone-use precision does not have a real-world baseline yet.
-- The desktop interface is a small fallback window. It is not a tray icon yet.
+- The application does not have a tray icon or a menu-bar icon yet.
 - The macOS package supports Apple Silicon only.
 
-Version `0.1.0` is a pre-release for personal testing. Do not describe its classifications as measured accuracy.
+Version `1.0.0` is the first release. Do not describe its classifications as measured accuracy, because there is no real-world baseline yet.
 
 ## Privacy
 

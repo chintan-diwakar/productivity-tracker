@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "desk-focus-tracker"
-version = "0.1.0"
-description = "A private, local-first desk focus tracker"
+name = "know-your-focus"
+version = "1.0.0"
+description = "A private, local-first tracker for focus, phone use, and away time"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -43,11 +43,11 @@ onnx = [
 ]
 
 [project.scripts]
-desk-focus = "desk_focus_tracker.cli:main"
-desk-focus-engine = "desk_focus_tracker.engine_server:main"
+kyf = "know_your_focus.cli:main"
+kyf-engine = "know_your_focus.engine_server:main"
 
 [project.gui-scripts]
-desk-focus-app = "desk_focus_tracker.desktop_launcher:main"
+kyf-app = "know_your_focus.desktop_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -10,11 +10,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Protocol
 
-from desk_focus_tracker.camera import CameraProperties, OpenCVCamera, import_cv2
-from desk_focus_tracker.config import AppConfig, load_config
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.mediapipe_detector import MediaPipeDetector
-from desk_focus_tracker.vision import NormalizedBox, VisionEvidence
+from know_your_focus.camera import CameraProperties, OpenCVCamera, import_cv2
+from know_your_focus.config import AppConfig, load_config
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.mediapipe_detector import MediaPipeDetector
+from know_your_focus.vision import NormalizedBox, VisionEvidence
 
 
 class PreviewError(RuntimeError):
@@ -58,7 +58,7 @@ class InferenceWorker:
         self._sequence = 0
         self._thread = threading.Thread(
             target=self._run,
-            name="desk-focus-inference",
+            name="kyf-inference",
             daemon=True,
         )
 
@@ -355,7 +355,7 @@ def run_preview(
     )
     detector = MediaPipeDetector(config)
     worker = InferenceWorker(detector)
-    window_name = "Desk Focus Diagnostic Preview"
+    window_name = "Know Your Focus Diagnostic Preview"
     started = time.monotonic()
     next_inference = started
     frame_times: deque[float] = deque(maxlen=max(2, round(display_fps * 2)))

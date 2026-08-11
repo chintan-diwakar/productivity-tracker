@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from dataclasses import dataclass
 
-from desk_focus_tracker.domain import DetectionResult, Status
+from know_your_focus.domain import DetectionResult, Status
 
 
 @dataclass(frozen=True, slots=True)

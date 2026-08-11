@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-from desk_focus_tracker.camera import DependencyError, import_cv2
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.domain import DetectionResult, Status
+from know_your_focus.camera import DependencyError, import_cv2
+from know_your_focus.config import AppConfig
+from know_your_focus.domain import DetectionResult, Status
 
 
 class Detector(Protocol):
@@ -53,7 +53,7 @@ class OpenCVFaceDetector:
 
 def create_detector(config: AppConfig) -> Detector:
     if config.detector_backend == "mediapipe":
-        from desk_focus_tracker.mediapipe_detector import MediaPipeDetector
+        from know_your_focus.mediapipe_detector import MediaPipeDetector
 
         return MediaPipeDetector(config)
     if config.detector_backend == "opencv_face":

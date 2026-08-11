@@ -6,8 +6,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.storage import JsonlSessionLogger
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.storage import JsonlSessionLogger
 
 
 class JsonlSessionLoggerTest(unittest.TestCase):

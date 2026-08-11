@@ -2,17 +2,17 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-release_version="${RELEASE_VERSION:-0.1.0}"
+release_version="${RELEASE_VERSION:-1.0.0}"
 release_version="${release_version#v}"
 export RELEASE_VERSION="$release_version"
 architecture="$(dpkg --print-architecture)"
-stage_root="$project_root/packaging/stage/desk-focus-tracker"
-application_root="$stage_root/opt/desk-focus-tracker"
-artifact="$project_root/dist/desk-focus-tracker_${release_version}_${architecture}.deb"
+stage_root="$project_root/packaging/stage/know-your-focus"
+application_root="$stage_root/opt/know-your-focus"
+artifact="$project_root/dist/know-your-focus_${release_version}_${architecture}.deb"
 
 cd "$project_root"
 cargo build --locked --release --manifest-path desktop/Cargo.toml
-python -m PyInstaller --clean --noconfirm packaging/desk_focus.spec
+python -m PyInstaller --clean --noconfirm packaging/know_your_focus.spec
 
 rm -rf "$stage_root"
 mkdir -p \
@@ -21,15 +21,15 @@ mkdir -p \
   "$stage_root/usr/bin" \
   "$stage_root/usr/share/applications" \
   "$stage_root/usr/share/icons/hicolor/scalable/apps"
-install -m 0755 desktop/target/release/desk-focus-tracker \
-  "$application_root/desk-focus-tracker"
+install -m 0755 desktop/target/release/know-your-focus \
+  "$application_root/know-your-focus"
 mkdir -p "$application_root/engine"
-cp -a dist/DeskFocusEngine/. "$application_root/engine/"
-ln -s /opt/desk-focus-tracker/desk-focus-tracker "$stage_root/usr/bin/desk-focus-tracker"
-install -m 0644 packaging/linux/desk-focus-tracker.desktop \
-  "$stage_root/usr/share/applications/desk-focus-tracker.desktop"
-install -m 0644 packaging/assets/desk-focus-tracker.svg \
-  "$stage_root/usr/share/icons/hicolor/scalable/apps/desk-focus-tracker.svg"
+cp -a dist/KyfEngine/. "$application_root/engine/"
+ln -s /opt/know-your-focus/know-your-focus "$stage_root/usr/bin/know-your-focus"
+install -m 0644 packaging/linux/know-your-focus.desktop \
+  "$stage_root/usr/share/applications/know-your-focus.desktop"
+install -m 0644 packaging/assets/know-your-focus.svg \
+  "$stage_root/usr/share/icons/hicolor/scalable/apps/know-your-focus.svg"
 
 installed_size="$(du -sk "$stage_root" | cut -f1)"
 sed \

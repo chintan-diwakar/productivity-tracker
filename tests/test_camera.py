@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from desk_focus_tracker.camera import OpenCVCamera, enumerate_camera_devices
+from know_your_focus.camera import OpenCVCamera, enumerate_camera_devices
 
 
 class OpenCVCameraTest(unittest.TestCase):
@@ -29,8 +29,8 @@ class CameraDiscoveryTest(unittest.TestCase):
         )
 
         with (
-            patch("desk_focus_tracker.camera.import_cv2", return_value=fake_cv2),
-            patch("desk_focus_tracker.camera.sys.platform", "linux"),
+            patch("know_your_focus.camera.import_cv2", return_value=fake_cv2),
+            patch("know_your_focus.camera.sys.platform", "linux"),
             patch.dict("sys.modules", {"cv2_enumerate_cameras": camera_module}),
         ):
             cameras = enumerate_camera_devices()

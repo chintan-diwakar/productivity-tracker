@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Know Your Focus
+Comment=Measure focus time, phone use, and away time with a local camera
+Exec=/usr/bin/know-your-focus
+Icon=know-your-focus
+Terminal=false
+Categories=Utility;
+StartupNotify=true

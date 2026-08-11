@@ -55,13 +55,13 @@ The Python MediaPipe package exceeds the memory goal before all three tasks load
 1. Download the model files.
 
    ```bash
-   .venv/bin/desk-focus download-models --directory models
+   .venv/bin/kyf download-models --directory models
    ```
 
 2. Use the example configuration for the local model directory.
 
    ```bash
-   .venv/bin/desk-focus benchmark --config configuration.example.json --iterations 10
+   .venv/bin/kyf benchmark --config configuration.example.json --iterations 10
    ```
 
 ## Next action

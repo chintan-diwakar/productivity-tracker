@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.policy import AwayPolicy
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.policy import AwayPolicy
 
 
 class AwayPolicyTest(unittest.TestCase):

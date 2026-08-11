@@ -13,7 +13,7 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::Duration;
 
-const APP_ID: &str = "dev.chintandiwakar.DeskFocusTracker";
+const APP_ID: &str = "dev.chintandiwakar.KnowYourFocus";
 
 #[derive(Clone, Debug)]
 enum RequestKind {
@@ -163,7 +163,7 @@ impl Drop for EngineProcess {
 }
 
 fn engine_command() -> Result<Command, String> {
-    if let Some(executable) = env::var_os("DESK_FOCUS_ENGINE") {
+    if let Some(executable) = env::var_os("KYF_ENGINE") {
         return Ok(Command::new(executable));
     }
 
@@ -172,27 +172,18 @@ fn engine_command() -> Result<Command, String> {
     let executable_directory = current_executable
         .parent()
         .ok_or("Cannot locate the application directory")?;
-    let mut candidates = vec![
-        executable_directory
-            .join("engine")
-            .join("desk-focus-engine"),
-    ];
+    let mut candidates = vec![executable_directory.join("engine").join("kyf-engine")];
     if let Some(contents) = executable_directory.parent() {
-        candidates.push(
-            contents
-                .join("Resources")
-                .join("engine")
-                .join("desk-focus-engine"),
-        );
+        candidates.push(contents.join("Resources").join("engine").join("kyf-engine"));
     }
-    candidates.push(PathBuf::from(".venv/bin/desk-focus-engine"));
+    candidates.push(PathBuf::from(".venv/bin/kyf-engine"));
     for candidate in candidates {
         if candidate.is_file() {
             return Ok(Command::new(candidate));
         }
     }
 
-    Ok(Command::new("desk-focus-engine"))
+    Ok(Command::new("kyf-engine"))
 }
 
 fn start_engine_worker(
@@ -545,7 +536,7 @@ fn build_ui(application: &adw::Application, config_path: Option<PathBuf>) {
 fn create_ui(application: &adw::Application) -> Ui {
     let window = adw::ApplicationWindow::builder()
         .application(application)
-        .title("Desk Focus Tracker")
+        .title("Know Your Focus")
         .default_width(660)
         .default_height(820)
         .build();

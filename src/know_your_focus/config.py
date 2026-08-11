@@ -16,20 +16,20 @@ class ConfigurationError(ValueError):
 
 def default_data_dir() -> Path:
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "Desk Focus Tracker"
+        return Path.home() / "Library" / "Application Support" / "Know Your Focus"
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     if xdg_data_home:
-        return Path(xdg_data_home) / "desk-focus-tracker"
-    return Path.home() / ".local" / "share" / "desk-focus-tracker"
+        return Path(xdg_data_home) / "know-your-focus"
+    return Path.home() / ".local" / "share" / "know-your-focus"
 
 
 def default_model_dir() -> Path:
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Caches" / "Desk Focus Tracker" / "models"
+        return Path.home() / "Library" / "Caches" / "Know Your Focus" / "models"
     xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
     if xdg_cache_home:
-        return Path(xdg_cache_home) / "desk-focus-tracker" / "models"
-    return Path.home() / ".cache" / "desk-focus-tracker" / "models"
+        return Path(xdg_cache_home) / "know-your-focus" / "models"
+    return Path.home() / ".cache" / "know-your-focus" / "models"
 
 
 def default_config_path() -> Path:
@@ -38,12 +38,12 @@ def default_config_path() -> Path:
             Path.home()
             / "Library"
             / "Application Support"
-            / "Desk Focus Tracker"
+            / "Know Your Focus"
             / "configuration.json"
         )
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg_config_home) if xdg_config_home else Path.home() / ".config"
-    return base / "desk-focus-tracker" / "configuration.json"
+    return base / "know-your-focus" / "configuration.json"
 
 
 @dataclass(frozen=True, slots=True)

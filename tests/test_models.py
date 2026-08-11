@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from desk_focus_tracker.models import ModelAsset, ModelError, ModelStore
+from know_your_focus.models import ModelAsset, ModelError, ModelStore
 
 
 class ModelStoreTest(unittest.TestCase):

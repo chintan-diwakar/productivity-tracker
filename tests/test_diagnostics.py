@@ -8,8 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
-from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
-from desk_focus_tracker.domain import DetectionResult, Status
+from know_your_focus.diagnostics import DiagnosticFrameWriter
+from know_your_focus.domain import DetectionResult, Status
 
 
 class DiagnosticFrameWriterTest(unittest.TestCase):

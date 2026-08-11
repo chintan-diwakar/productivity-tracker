@@ -8,6 +8,26 @@ from PIL import Image, ImageDraw
 SIZES = (16, 32, 128, 256, 512)
 
 
+BACKGROUND = "#123D46"
+BRACKET = "#73D7C7"
+FOCUS_POINT = "#FFB45C"
+BRACKET_RADIUS = 40
+
+# Two rectangles per corner make one open focus bracket. The gaps between the
+# corners stay wide enough to survive a 16x16 render.
+BRACKETS = (
+    (208, 208, 416, 312),
+    (208, 208, 312, 416),
+    (608, 208, 816, 312),
+    (712, 208, 816, 416),
+    (208, 608, 312, 816),
+    (208, 712, 416, 816),
+    (712, 608, 816, 816),
+    (608, 712, 816, 816),
+)
+DIAMOND = ((512, 388), (636, 512), (512, 636), (388, 512))
+
+
 def create_icon(size: int) -> Image.Image:
     scale = size / 1024
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -16,21 +36,20 @@ def create_icon(size: int) -> Image.Image:
     def box(values: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
         return tuple(round(value * scale) for value in values)
 
-    draw.rounded_rectangle(box((48, 48, 976, 976)), radius=round(220 * scale), fill="#123D46")
-    draw.rounded_rectangle(box((178, 215, 846, 710)), radius=round(64 * scale), fill="#EAF7F4")
-    draw.ellipse(box((354, 315, 670, 631)), fill="#2A8C82")
-    draw.ellipse(box((446, 407, 578, 539)), fill="#123D46")
-    draw.rounded_rectangle(box((425, 714, 599, 785)), radius=round(24 * scale), fill="#EAF7F4")
-    draw.rounded_rectangle(box((320, 776, 704, 832)), radius=round(28 * scale), fill="#EAF7F4")
-    draw.rounded_rectangle(box((688, 500, 858, 822)), radius=round(38 * scale), fill="#FF9C52")
-    draw.ellipse(box((754, 755, 792, 793)), fill="#123D46")
+    def point(values: tuple[int, int]) -> tuple[int, int]:
+        return tuple(round(value * scale) for value in values)
+
+    draw.rounded_rectangle(box((48, 48, 976, 976)), radius=round(220 * scale), fill=BACKGROUND)
+    for bounds in BRACKETS:
+        draw.rounded_rectangle(box(bounds), radius=round(BRACKET_RADIUS * scale), fill=BRACKET)
+    draw.polygon([point(values) for values in DIAMOND], fill=FOCUS_POINT)
     return image
 
 
 def main(output_directory: Path) -> int:
     output_directory.mkdir(parents=True, exist_ok=True)
-    create_icon(1024).save(output_directory / "desk-focus.png")
-    iconset = output_directory / "desk-focus.iconset"
+    create_icon(1024).save(output_directory / "know-your-focus.png")
+    iconset = output_directory / "know-your-focus.iconset"
     iconset.mkdir(exist_ok=True)
     for size in SIZES:
         create_icon(size).save(iconset / f"icon_{size}x{size}.png")

@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from desk_focus_tracker.desktop import DesktopController, DesktopSnapshot
+from know_your_focus.desktop import DesktopController, DesktopSnapshot
 
 
 class EngineProtocolError(ValueError):
@@ -150,7 +150,7 @@ def serve(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="desk-focus-engine")
+    parser = argparse.ArgumentParser(prog="kyf-engine")
     parser.add_argument("--config", type=Path, help="path to a JSON configuration")
     return parser
 

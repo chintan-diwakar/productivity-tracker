@@ -1,4 +1,4 @@
-Package: desk-focus-tracker
+Package: know-your-focus
 Version: @VERSION@
 Section: utils
 Priority: optional
@@ -6,7 +6,8 @@ Architecture: @ARCHITECTURE@
 Maintainer: Chintan Diwakar
 Depends: libc6 (>= 2.35), libadwaita-1-0 (>= 1.5), libgtk-4-1 (>= 4.14), libgl1, libglib2.0-0t64, libglib2.0-bin, libsm6, libx11-6, libxext6, libxrender1, xdg-utils
 Installed-Size: @INSTALLED_SIZE@
-Description: Local desk-focus tracker
- Desk Focus Tracker uses local camera inference to estimate focused,
- possible phone-use, uncertain, and away time. Its GTK 4 and Libadwaita
- interface follows the GNOME desktop guidelines.
+Description: Local tracker for focus time, phone use, and away time
+ Know Your Focus uses a local camera to measure the time at your
+ workstation. It reports focused time, possible phone use, uncertain
+ time, and away time. The camera images stay on your computer. The
+ GTK 4 and Libadwaita interface obeys the GNOME desktop guidelines.

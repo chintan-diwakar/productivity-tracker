@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 import unittest
 
-from desk_focus_tracker.domain import Status
-from desk_focus_tracker.vision import (
+from know_your_focus.domain import Status
+from know_your_focus.vision import (
     BehaviorClassifier,
     NormalizedBox,
     Point,

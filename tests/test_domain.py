@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.domain import StatisticsCategory, Status, statistics_category
+from know_your_focus.domain import StatisticsCategory, Status, statistics_category
 
 
 class StatisticsCategoryTest(unittest.TestCase):

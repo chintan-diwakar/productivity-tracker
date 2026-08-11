@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from desk_focus_tracker.domain import (
+from know_your_focus.domain import (
     DetectionResult,
     StatisticsCategory,
     Status,

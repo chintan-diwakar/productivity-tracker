@@ -6,15 +6,15 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 
-from desk_focus_tracker.camera import CameraError
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.detector import Detector
-from desk_focus_tracker.diagnostics import DiagnosticCaptureError, DiagnosticFrameWriter
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.idle import IdleMonitor, NullIdleMonitor
-from desk_focus_tracker.policy import AwayPolicy
-from desk_focus_tracker.smoothing import TemporalSmoother
-from desk_focus_tracker.storage import JsonlSessionLogger
+from know_your_focus.camera import CameraError
+from know_your_focus.config import AppConfig
+from know_your_focus.detector import Detector
+from know_your_focus.diagnostics import DiagnosticCaptureError, DiagnosticFrameWriter
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.idle import IdleMonitor, NullIdleMonitor
+from know_your_focus.policy import AwayPolicy
+from know_your_focus.smoothing import TemporalSmoother
+from know_your_focus.storage import JsonlSessionLogger
 
 
 class Camera(Protocol):

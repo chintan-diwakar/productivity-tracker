@@ -1,13 +1,13 @@
 [package]
-name = "desk-focus-desktop"
-version = "0.1.0"
+name = "know-your-focus-desktop"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.92"
-description = "GTK 4 and Libadwaita desktop frontend for Desk Focus Tracker"
+description = "GTK 4 and Libadwaita desktop frontend for Know Your Focus"
 license = "MIT"
 
 [[bin]]
-name = "desk-focus-tracker"
+name = "know-your-focus"
 path = "src/main.rs"
 
 [dependencies]

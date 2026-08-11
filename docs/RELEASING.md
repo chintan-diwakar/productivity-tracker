@@ -2,7 +2,7 @@
 
 ## Supported package targets
 
-Version `0.1.0` has two package targets:
+Version `1.0.0` has two package targets:
 
 | Package | Target |
 | --- | --- |
@@ -25,14 +25,14 @@ Install the Python build tools. Then build the package:
 
 ```bash
 python -m pip install '.[dev,packaging]'
-RELEASE_VERSION=0.1.0 bash packaging/build_ubuntu.sh
+RELEASE_VERSION=1.0.0 bash packaging/build_ubuntu.sh
 ```
 
 The script creates these files in `dist/`:
 
 ```text
-desk-focus-tracker_0.1.0_amd64.deb
-desk-focus-tracker_0.1.0_amd64.deb.sha256
+know-your-focus_1.0.0_amd64.deb
+know-your-focus_1.0.0_amd64.deb.sha256
 ```
 
 The Docker build gives a repeatable Ubuntu 24.04 environment:
@@ -40,7 +40,7 @@ The Docker build gives a repeatable Ubuntu 24.04 environment:
 ```bash
 docker build \
   -f packaging/Dockerfile.ubuntu \
-  --build-arg RELEASE_VERSION=0.1.0 \
+  --build-arg RELEASE_VERSION=1.0.0 \
   --output type=local,dest=dist \
   .
 ```
@@ -59,7 +59,7 @@ Install the Python build tools. Then build the package:
 
 ```bash
 python -m pip install '.[dev,packaging]'
-RELEASE_VERSION=0.1.0 bash packaging/build_macos.sh
+RELEASE_VERSION=1.0.0 bash packaging/build_macos.sh
 ```
 
 This command creates an ad-hoc signed test disk image. The disk image contains GTK, Libadwaita, and the Python engine.
@@ -89,11 +89,11 @@ A tagged release stops without all required signing values.
 
 Use **Build release packages** in GitHub Actions for a test build. Enter the version without a `v` prefix.
 
-A tag that starts with `v` creates a GitHub pre-release after both package jobs pass.
+A tag that starts with `v` creates a GitHub release after both package jobs pass.
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 Do not push the tag until the release commit is on `main`.
@@ -109,4 +109,4 @@ Complete these checks before a tag:
 - Known limits appear in the README and release notes.
 - A real-world evaluation report exists before a stable accuracy claim.
 
-Version `0.1.0` is a pre-release. The current memory result does not pass the original `150 MB` goal.
+Version `1.0.0` is the first release. The current memory result does not pass the original `150 MB` goal.

@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Desk Focus Tracker
-Comment=Track desk-focus time with local camera processing
-Exec=/usr/bin/desk-focus-tracker
-Icon=desk-focus-tracker
-Terminal=false
-Categories=Utility;
-StartupNotify=true

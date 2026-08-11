@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from desk_focus_tracker.domain import DetectionResult, Status
+from know_your_focus.domain import DetectionResult, Status
 
 
 class AwayPolicy:

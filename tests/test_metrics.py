@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime, timezone
 
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.metrics import (
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.metrics import (
     calculate_daily_metrics,
     calculate_session_metrics,
     format_duration,

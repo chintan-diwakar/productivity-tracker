@@ -93,7 +93,7 @@ class ModelStore:
             if actual_sha256 != asset.sha256:
                 errors.append(f"invalid checksum for {asset.name}: {path}")
         if errors:
-            command = f"desk-focus download-models --directory {self.directory}"
+            command = f"kyf download-models --directory {self.directory}"
             raise ModelError("; ".join(errors) + f". Run: {command}")
 
     def download_all(self, force: bool = False) -> list[Path]:
