@@ -51,11 +51,14 @@ sed "s/@VERSION@/$release_version/g" packaging/macos/Info.plist.in \
   > "$app/Contents/Info.plist"
 
 homebrew_prefix="$(brew --prefix)"
-cp -a "$homebrew_prefix/share/glib-2.0/schemas" \
+# Dereference symlinks: Homebrew links these files into the Cellar with
+# relative targets that dangle once copied into the bundle, and codesign
+# refuses to seal dangling symlinks.
+cp -RpL "$homebrew_prefix/share/glib-2.0/schemas" \
   "$app/Contents/Resources/share/glib-2.0/"
 for icon_theme in Adwaita hicolor; do
   if [[ -d "$homebrew_prefix/share/icons/$icon_theme" ]]; then
-    cp -a "$homebrew_prefix/share/icons/$icon_theme" \
+    cp -RpL "$homebrew_prefix/share/icons/$icon_theme" \
       "$app/Contents/Resources/share/icons/"
   fi
 done

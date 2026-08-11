@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from desk_focus_tracker.config import AppConfig
 from desk_focus_tracker.domain import DetectionResult, Status
@@ -133,6 +135,25 @@ class TrackerRunnerTest(unittest.TestCase):
             runner.pause()
 
             runner.run(duration_seconds=0.01)
+
+        self.assertEqual(camera.open_count, 0)
+        self.assertIn(Status.PAUSED, statuses)
+
+    def test_emits_paused_when_startup_writes_outlast_the_duration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            camera = FakeCamera()
+            detector = FakeDetector()
+            statuses: list[Status] = []
+            runner = self.build_runner(Path(temporary_directory), camera, detector, statuses)
+            runner.pause()
+            original_prune = JsonlSessionLogger.prune
+
+            def slow_prune(logger: JsonlSessionLogger, *args: object, **kwargs: object) -> object:
+                time.sleep(0.05)
+                return original_prune(logger, *args, **kwargs)
+
+            with patch.object(JsonlSessionLogger, "prune", slow_prune):
+                runner.run(duration_seconds=0.01)
 
         self.assertEqual(camera.open_count, 0)
         self.assertIn(Status.PAUSED, statuses)
