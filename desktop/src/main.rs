@@ -172,18 +172,9 @@ fn engine_command() -> Result<Command, String> {
     let executable_directory = current_executable
         .parent()
         .ok_or("Cannot locate the application directory")?;
-    let mut candidates = vec![
-        executable_directory
-            .join("engine")
-            .join("kyf-engine"),
-    ];
+    let mut candidates = vec![executable_directory.join("engine").join("kyf-engine")];
     if let Some(contents) = executable_directory.parent() {
-        candidates.push(
-            contents
-                .join("Resources")
-                .join("engine")
-                .join("kyf-engine"),
-        );
+        candidates.push(contents.join("Resources").join("engine").join("kyf-engine"));
     }
     candidates.push(PathBuf::from(".venv/bin/kyf-engine"));
     for candidate in candidates {
