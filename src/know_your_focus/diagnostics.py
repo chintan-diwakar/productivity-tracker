@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from desk_focus_tracker.camera import import_cv2
-from desk_focus_tracker.domain import DetectionResult
+from know_your_focus.camera import import_cv2
+from know_your_focus.domain import DetectionResult
 
 
 class DiagnosticCaptureError(RuntimeError):

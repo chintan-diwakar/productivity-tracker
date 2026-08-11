@@ -7,9 +7,9 @@ from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from desk_focus_tracker.domain import Status
-from desk_focus_tracker.engine_server import EngineService, serve, snapshot_mapping
-from desk_focus_tracker.metrics import calculate_daily_metrics
+from know_your_focus.domain import Status
+from know_your_focus.engine_server import EngineService, serve, snapshot_mapping
+from know_your_focus.metrics import calculate_daily_metrics
 
 
 class EngineSnapshotTest(unittest.TestCase):

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.smoothing import TemporalSmoother
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.smoothing import TemporalSmoother
 
 
 class TemporalSmootherTest(unittest.TestCase):

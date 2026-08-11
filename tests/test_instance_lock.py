@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from desk_focus_tracker.instance_lock import InstanceLock, InstanceLockError
+from know_your_focus.instance_lock import InstanceLock, InstanceLockError
 
 
 class InstanceLockTest(unittest.TestCase):

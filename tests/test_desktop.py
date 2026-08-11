@@ -5,9 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from desk_focus_tracker.config import load_config
-from desk_focus_tracker.desktop import STATUS_LABELS, DesktopBusyError, DesktopController
-from desk_focus_tracker.domain import Status
+from know_your_focus.config import load_config
+from know_your_focus.desktop import STATUS_LABELS, DesktopBusyError, DesktopController
+from know_your_focus.domain import Status
 
 
 class DesktopLabelsTest(unittest.TestCase):

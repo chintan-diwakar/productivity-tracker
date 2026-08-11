@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from desk_focus_tracker.desktop import DesktopDependencyError
+from know_your_focus.desktop import DesktopDependencyError
 
 
 def _frontend_executable() -> Path:

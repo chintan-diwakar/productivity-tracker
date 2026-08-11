@@ -3,17 +3,17 @@ from __future__ import annotations
 from types import ModuleType
 from typing import Any
 
-from desk_focus_tracker.camera import DependencyError, import_cv2
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.domain import DetectionResult
-from desk_focus_tracker.models import (
+from know_your_focus.camera import DependencyError, import_cv2
+from know_your_focus.config import AppConfig
+from know_your_focus.domain import DetectionResult
+from know_your_focus.models import (
     FACE_LANDMARKER_MODEL,
     HAND_LANDMARKER_MODEL,
     MODEL_SET_VERSION,
     OBJECT_DETECTOR_MODEL,
     ModelStore,
 )
-from desk_focus_tracker.vision import (
+from know_your_focus.vision import (
     BehaviorClassifier,
     NormalizedBox,
     Point,

@@ -7,10 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.runner import TrackerRunner
-from desk_focus_tracker.storage import JsonlSessionLogger
+from know_your_focus.config import AppConfig
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.runner import TrackerRunner
+from know_your_focus.storage import JsonlSessionLogger
 
 
 class FakeCamera:

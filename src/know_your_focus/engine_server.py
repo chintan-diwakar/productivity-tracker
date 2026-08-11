@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from desk_focus_tracker.desktop import DesktopController, DesktopSnapshot
+from know_your_focus.desktop import DesktopController, DesktopSnapshot
 
 
 class EngineProtocolError(ValueError):

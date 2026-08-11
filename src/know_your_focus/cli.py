@@ -9,9 +9,9 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from desk_focus_tracker.calibration import CalibrationError, calibrate_neutral_head
-from desk_focus_tracker.camera import CameraError, DependencyError, OpenCVCamera
-from desk_focus_tracker.config import (
+from know_your_focus.calibration import CalibrationError, calibrate_neutral_head
+from know_your_focus.camera import CameraError, DependencyError, OpenCVCamera
+from know_your_focus.config import (
     ConfigurationError,
     default_config_path,
     default_model_dir,
@@ -19,22 +19,22 @@ from desk_focus_tracker.config import (
     write_config,
     write_default_config,
 )
-from desk_focus_tracker.desktop import DesktopDependencyError
-from desk_focus_tracker.desktop_launcher import run_desktop
-from desk_focus_tracker.detector import create_detector
-from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
-from desk_focus_tracker.domain import DetectionResult
-from desk_focus_tracker.evaluation import EvaluationError, write_evaluation_report
-from desk_focus_tracker.idle import create_idle_monitor
-from desk_focus_tracker.instance_lock import InstanceLockError, data_directory_lock
-from desk_focus_tracker.models import ModelError, ModelStore
-from desk_focus_tracker.preview import PreviewError, run_preview
-from desk_focus_tracker.runner import TrackerRunner
-from desk_focus_tracker.storage import JsonlSessionLogger, StorageError
+from know_your_focus.desktop import DesktopDependencyError
+from know_your_focus.desktop_launcher import run_desktop
+from know_your_focus.detector import create_detector
+from know_your_focus.diagnostics import DiagnosticFrameWriter
+from know_your_focus.domain import DetectionResult
+from know_your_focus.evaluation import EvaluationError, write_evaluation_report
+from know_your_focus.idle import create_idle_monitor
+from know_your_focus.instance_lock import InstanceLockError, data_directory_lock
+from know_your_focus.models import ModelError, ModelStore
+from know_your_focus.preview import PreviewError, run_preview
+from know_your_focus.runner import TrackerRunner
+from know_your_focus.storage import JsonlSessionLogger, StorageError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="desk-focus")
+    parser = argparse.ArgumentParser(prog="kyf")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     app_parser = subparsers.add_parser("app", help="open the desktop application")

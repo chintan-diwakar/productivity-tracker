@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.mediapipe_detector import _category_score_is_accepted
+from know_your_focus.mediapipe_detector import _category_score_is_accepted
 
 
 class CategoryScoreThresholdTest(unittest.TestCase):

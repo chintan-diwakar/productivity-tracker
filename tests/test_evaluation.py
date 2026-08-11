@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from desk_focus_tracker.domain import Status
-from desk_focus_tracker.evaluation import EvaluationError, evaluate_results, load_labeled_results
+from know_your_focus.domain import Status
+from know_your_focus.evaluation import EvaluationError, evaluate_results, load_labeled_results
 
 
 class EvaluationTest(unittest.TestCase):

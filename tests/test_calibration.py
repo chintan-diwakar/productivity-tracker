@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.calibration import CalibrationError, calculate_neutral_pitch
+from know_your_focus.calibration import CalibrationError, calculate_neutral_pitch
 
 
 class CalibrationTest(unittest.TestCase):

@@ -6,7 +6,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from desk_focus_tracker.config import (
+from know_your_focus.config import (
     AppConfig,
     ConfigurationError,
     load_config,

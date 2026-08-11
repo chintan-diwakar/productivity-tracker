@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from desk_focus_tracker.domain import UNCERTAIN_STATUSES, Status
+from know_your_focus.domain import UNCERTAIN_STATUSES, Status
 
 
 class EvaluationError(ValueError):

@@ -5,9 +5,9 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 
-from desk_focus_tracker.camera import OpenCVCamera
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.mediapipe_detector import MediaPipeDetector
+from know_your_focus.camera import OpenCVCamera
+from know_your_focus.config import AppConfig
+from know_your_focus.mediapipe_detector import MediaPipeDetector
 
 
 class CalibrationError(RuntimeError):

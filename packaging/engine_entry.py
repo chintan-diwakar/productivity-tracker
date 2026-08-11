@@ -1,3 +1,3 @@
-from desk_focus_tracker.engine_server import main
+from know_your_focus.engine_server import main
 
 raise SystemExit(main())

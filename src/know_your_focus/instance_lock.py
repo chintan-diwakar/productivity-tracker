@@ -33,7 +33,7 @@ class InstanceLock:
             except BlockingIOError as error:
                 os.close(descriptor)
                 raise InstanceLockError(
-                    "Desk Focus Tracker is already running for this data directory"
+                    "Know Your Focus is already running for this data directory"
                 ) from error
             os.ftruncate(descriptor, 0)
             os.write(descriptor, f"{os.getpid()}\n".encode("ascii"))
@@ -71,4 +71,4 @@ class InstanceLock:
 
 
 def data_directory_lock(data_dir: Path) -> InstanceLock:
-    return InstanceLock(data_dir / ".desk-focus-tracker.lock")
+    return InstanceLock(data_dir / ".know-your-focus.lock")

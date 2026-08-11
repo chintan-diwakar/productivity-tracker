@@ -11,8 +11,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.metrics import (
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.metrics import (
     DailyMetrics,
     SessionMetrics,
     calculate_daily_metrics,

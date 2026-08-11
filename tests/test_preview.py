@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from desk_focus_tracker.camera import CameraProperties
-from desk_focus_tracker.config import AppConfig
-from desk_focus_tracker.domain import DetectionResult, Status
-from desk_focus_tracker.preview import (
+from know_your_focus.camera import CameraProperties
+from know_your_focus.config import AppConfig
+from know_your_focus.domain import DetectionResult, Status
+from know_your_focus.preview import (
     InferenceWorker,
     PreviewPerformance,
     _destroy_window_safely,
@@ -13,7 +13,7 @@ from desk_focus_tracker.preview import (
     evidence_lines,
     pixel_box,
 )
-from desk_focus_tracker.vision import NormalizedBox, Point, VisionEvidence
+from know_your_focus.vision import NormalizedBox, Point, VisionEvidence
 
 
 class EvidenceLinesTest(unittest.TestCase):

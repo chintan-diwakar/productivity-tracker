@@ -12,25 +12,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from desk_focus_tracker.calibration import CalibrationResult, calibrate_neutral_head
-from desk_focus_tracker.camera import CameraDevice, OpenCVCamera, enumerate_camera_devices
-from desk_focus_tracker.config import (
+from know_your_focus.calibration import CalibrationResult, calibrate_neutral_head
+from know_your_focus.camera import CameraDevice, OpenCVCamera, enumerate_camera_devices
+from know_your_focus.config import (
     AppConfig,
     default_config_path,
     load_config,
     write_config,
     write_default_config,
 )
-from desk_focus_tracker.detector import create_detector
-from desk_focus_tracker.diagnostics import DiagnosticFrameWriter
-from desk_focus_tracker.domain import DetectionResult, StatisticsCategory, Status
-from desk_focus_tracker.idle import create_idle_monitor
-from desk_focus_tracker.instance_lock import InstanceLock, data_directory_lock
-from desk_focus_tracker.metrics import DailyMetrics, SessionMetrics, format_duration, format_ratio
-from desk_focus_tracker.models import ModelStore
-from desk_focus_tracker.preview import run_preview
-from desk_focus_tracker.runner import TrackerRunner
-from desk_focus_tracker.storage import JsonlSessionLogger
+from know_your_focus.detector import create_detector
+from know_your_focus.diagnostics import DiagnosticFrameWriter
+from know_your_focus.domain import DetectionResult, StatisticsCategory, Status
+from know_your_focus.idle import create_idle_monitor
+from know_your_focus.instance_lock import InstanceLock, data_directory_lock
+from know_your_focus.metrics import DailyMetrics, SessionMetrics, format_duration, format_ratio
+from know_your_focus.models import ModelStore
+from know_your_focus.preview import run_preview
+from know_your_focus.runner import TrackerRunner
+from know_your_focus.storage import JsonlSessionLogger
 
 
 class DesktopDependencyError(RuntimeError):

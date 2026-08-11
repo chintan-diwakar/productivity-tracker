@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from desk_focus_tracker.domain import DetectionResult, Status
+from know_your_focus.domain import DetectionResult, Status
 
 
 @dataclass(frozen=True, slots=True)
