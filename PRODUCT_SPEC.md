@@ -176,7 +176,7 @@ Example event:
   "confidence": 0.87,
   "reason": "phone_near_hand_and_downward_head_pose",
   "model_version": "phone-detector-1",
-  "configuration_version": 1
+  "configuration_version": 2
 }
 ```
 
@@ -280,7 +280,7 @@ The first version can expose these values in `configuration.json`:
 | `frame_width` | `320` | Working frame width |
 | `frame_height` | `240` | Working frame height |
 | `idle_timeout_seconds` | `300` | System idle threshold |
-| `away_timeout_seconds` | `30` | No-person threshold |
+| `away_timeout_seconds` | `5` | Continuous no-person threshold |
 | `window_samples` | `5` | Temporal classification window |
 | `minimum_matching_samples` | `3` | Stable result threshold |
 | `daily_reset_time` | `00:00` | Local daily boundary |

@@ -54,7 +54,7 @@ class AppConfig:
     frame_width: int = 320
     frame_height: int = 240
     idle_timeout_seconds: float = 300.0
-    away_timeout_seconds: float = 30.0
+    away_timeout_seconds: float = 5.0
     window_samples: int = 5
     minimum_matching_samples: int = 3
     retention_days: int = 30
@@ -69,7 +69,7 @@ class AppConfig:
     phone_hand_max_distance: float = 0.2
     save_diagnostic_frames: bool = False
     diagnostic_frame_limit: int = 3600
-    configuration_version: int = 1
+    configuration_version: int = 2
 
     def __post_init__(self) -> None:
         if isinstance(self.data_dir, str):
@@ -125,6 +125,12 @@ class AppConfig:
             raise ConfigurationError(f"unknown configuration keys: {', '.join(unknown)}")
 
         normalized = dict(values)
+        configuration_version = normalized.get("configuration_version", 1)
+        if configuration_version == 1:
+            if normalized.get("away_timeout_seconds", 30.0) == 30.0:
+                normalized["away_timeout_seconds"] = 5.0
+            normalized["configuration_version"] = 2
+
         for path_key in ("data_dir", "model_dir"):
             if path_key not in normalized:
                 continue

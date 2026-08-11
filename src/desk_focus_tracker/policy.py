@@ -4,7 +4,7 @@ from desk_focus_tracker.domain import DetectionResult, Status
 
 
 class AwayPolicy:
-    """Require continuous no-face evidence before an AWAY result."""
+    """Require continuous no-person evidence before an AWAY result."""
 
     def __init__(self, timeout_seconds: float) -> None:
         if timeout_seconds < 0.0:

@@ -46,6 +46,24 @@ class AppConfigTest(unittest.TestCase):
         self.assertEqual(config.object_score_threshold, 0.15)
         self.assertEqual(config.person_score_threshold, 0.35)
 
+    def test_uses_a_short_away_confirmation_period(self) -> None:
+        config = AppConfig()
+
+        self.assertEqual(config.away_timeout_seconds, 5.0)
+        self.assertEqual(config.configuration_version, 2)
+
+    def test_migrates_the_original_away_confirmation_period(self) -> None:
+        config = AppConfig.from_mapping({"away_timeout_seconds": 30.0, "configuration_version": 1})
+
+        self.assertEqual(config.away_timeout_seconds, 5.0)
+        self.assertEqual(config.configuration_version, 2)
+
+    def test_preserves_a_custom_original_away_confirmation_period(self) -> None:
+        config = AppConfig.from_mapping({"away_timeout_seconds": 12.0, "configuration_version": 1})
+
+        self.assertEqual(config.away_timeout_seconds, 12.0)
+        self.assertEqual(config.configuration_version, 2)
+
     def test_converts_direct_path_strings(self) -> None:
         config = AppConfig(data_dir="~/data", model_dir="~/models")
 
