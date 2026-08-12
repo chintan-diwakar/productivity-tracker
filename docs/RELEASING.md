@@ -83,13 +83,15 @@ The release workflow imports the certificate into a temporary keychain. The buil
 
 The build script submits the disk image to Apple. It waits for notarization and staples the result.
 
-A tagged release stops without all required signing values.
+The macOS job runs only when all six values exist. Without them, the job does not run, and the workflow never builds an unsigned disk image.
+
+A tagged release then publishes the Ubuntu package alone. The release notes say that the macOS disk image is absent.
 
 ## Run the release workflow
 
 Use **Build release packages** in GitHub Actions for a test build. Enter the version without a `v` prefix.
 
-A tag that starts with `v` creates a GitHub release after both package jobs pass.
+A tag that starts with `v` creates a GitHub release after the Ubuntu package job passes.
 
 ```bash
 git tag v1.0.0
