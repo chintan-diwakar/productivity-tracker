@@ -50,7 +50,7 @@ jobs:
         run: |
           (cd dist && sha256sum -c know-your-focus_*.deb.sha256)
           sudo apt-get install --yes ./dist/know-your-focus_*.deb
-          python -m know_your_focus.cli download-models
+          python -m know_your_focus download-models
           printf '%s\n%s\n' \
             '{"id":1,"command":"start"}' \
             '{"id":2,"command":"shutdown"}' \
@@ -127,7 +127,7 @@ jobs:
         run: bash packaging/build_macos.sh
       - name: Make sure that the packaged engine starts
         run: |
-          python -m know_your_focus.cli download-models
+          python -m know_your_focus download-models
           printf '%s\n%s\n' \
             '{"id":1,"command":"start"}' \
             '{"id":2,"command":"shutdown"}' \
